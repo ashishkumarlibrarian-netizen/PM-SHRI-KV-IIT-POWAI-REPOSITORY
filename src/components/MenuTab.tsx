@@ -25,6 +25,7 @@ export default function MenuTab() {
       title: "KV & PM Shri Portals",
       links: [
         { title: "Kendriya Vidyalaya Sangathan HQ", icon: <School className="w-5 h-5" />, url: "https://kvsangathan.nic.in/" },
+        { title: "KVS Regional Office Mumbai", icon: <School className="w-5 h-5" />, url: "https://romumbai.kvs.gov.in/" },
         { title: "PM Shri Schools Official Portal", icon: <Globe className="w-5 h-5" />, url: "https://pmshrischools.education.gov.in/" },
         { title: "KV IIT Powai Website", icon: <Library className="w-5 h-5" />, url: "https://iitpowai.kvs.ac.in/" }
       ]
