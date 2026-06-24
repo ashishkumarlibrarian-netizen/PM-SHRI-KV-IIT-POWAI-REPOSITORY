@@ -39,9 +39,11 @@ import {
   Radio,
   Bell,
   Menu,
+  BookMarked,
 } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
 import MenuTab from "./components/MenuTab";
+import MagazineTab from "./components/MagazineTab";
 import {
   StoryChapter,
   BookRecommendation,
@@ -59,7 +61,7 @@ const INITIAL_SOCIAL_POSTS: SocialFeedPost[] = [];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "story" | "books" | "creative" | "social" | "menu"
+    "dashboard" | "story" | "books" | "creative" | "social" | "menu" | "magazine"
   >("dashboard");
 
   // Theme state for light and dark mode toggling
@@ -678,12 +680,12 @@ export default function App() {
             />
           </div>
           <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1.5 md:gap-2">
-              <span className="text-[9px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-sans tracking-wide whitespace-nowrap">
+            <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+              <span className="text-[9px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-sans tracking-wide whitespace-nowrap flex-shrink-0">
                 <span className="md:hidden">PM SHRI</span>
                 <span className="hidden md:inline">PM SHRI SCHOOL</span>
               </span>
-              <span className="hidden sm:inline text-[10px] md:text-[11px] font-mono text-cyan-400 whitespace-nowrap">
+              <span className="hidden sm:inline text-[10px] md:text-[11px] font-mono text-cyan-400 whitespace-nowrap truncate min-w-0">
                 IIT POWAI SECTOR
               </span>
             </div>
@@ -694,7 +696,7 @@ export default function App() {
         </div>
 
         {/* Navigation Tabs aligned horizontally */}
-        <nav className="hidden xl:flex items-center gap-1.5 text-xs font-semibold flex-shrink-0">
+        <nav className="hidden 2xl:flex items-center gap-1.5 text-xs font-semibold flex-shrink-0">
           <button
             onClick={() => setActiveTab("dashboard")}
             className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
@@ -753,6 +755,17 @@ export default function App() {
             }`}
           >
             <MessageSquare className="w-4 h-4" /> Social Hub
+          </button>
+
+          <button
+            onClick={() => setActiveTab("magazine")}
+            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+              activeTab === "magazine"
+                ? "bg-amber-500 text-slate-950 shadow-sm"
+                : "text-slate-300 hover:bg-white/10"
+            }`}
+          >
+            <BookMarked className="w-4 h-4" /> Magazine
           </button>
 
           <button
@@ -828,7 +841,7 @@ export default function App() {
       </header>
 
       {/* Tab Navigation for Mobile Systems */}
-      <div className="xl:hidden bg-slate-800 text-slate-100 overflow-x-auto whitespace-nowrap scrollbar-none border-b border-indigo-950">
+      <div className="2xl:hidden bg-slate-800 text-slate-100 overflow-x-auto whitespace-nowrap scrollbar-none border-b border-indigo-950">
         <div className="flex px-4 py-2 gap-2 text-xs">
           <button
             onClick={() => setActiveTab("dashboard")}
@@ -863,6 +876,12 @@ export default function App() {
             className={`px-4 py-2 rounded-full font-medium ${activeTab === "social" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
           >
             💬 Social Wall
+          </button>
+          <button
+            onClick={() => setActiveTab("magazine")}
+            className={`px-4 py-2 rounded-full font-medium flex items-center gap-1 ${activeTab === "magazine" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
+          >
+            <BookMarked className="w-4 h-4" /> Magazine
           </button>
           <button
             onClick={() => setActiveTab("menu")}
@@ -2421,6 +2440,10 @@ export default function App() {
 
           {activeTab === "menu" && (
             <MenuTab key="menu" />
+          )}
+
+          {activeTab === "magazine" && (
+            <MagazineTab key="magazine" />
           )}
         </AnimatePresence>
       </main>
