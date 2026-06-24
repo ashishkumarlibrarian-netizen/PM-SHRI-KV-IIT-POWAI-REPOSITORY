@@ -112,17 +112,13 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks }:
             </div>
             <div className="mt-2 space-y-4 text-xs font-mono">
               <div className="text-amber-300 uppercase tracking-widest text-center border-b border-white/10 pb-2">Vidyalaya Hours</div>
-              <div className="flex justify-between text-white">
-                <span>Monday - Friday</span>
-                <span>08:00 AM - 04:30 PM</span>
+              <div className="flex flex-col text-white gap-1 items-center">
+                <span className="text-slate-300">Monday - Saturday</span>
+                <span className="font-semibold">07:00 AM - 02:00 PM</span>
               </div>
-              <div className="flex justify-between text-white">
-                <span>Saturdays</span>
-                <span>08:30 AM - 02:00 PM</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Sundays & Holidays</span>
-                <span>Closed</span>
+              <div className="flex flex-col text-slate-400 gap-1 items-center">
+                <span className="text-slate-500">Sundays & Holidays</span>
+                <span className="font-semibold">Closed</span>
               </div>
             </div>
           </div>
