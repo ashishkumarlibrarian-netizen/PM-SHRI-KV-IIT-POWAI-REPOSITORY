@@ -1,0 +1,6 @@
+{
+  "name": "PM Shri KV IIT Powai Library Hub",
+  "description": "An interactive digital portal for PM Shri KV IIT Powai Library featuring AI-powered storytelling, creative prompts, curated catalogs, and dynamic school social media simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
