@@ -38,8 +38,10 @@ import {
   Users,
   Radio,
   Bell,
+  Menu,
 } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
+import MenuTab from "./components/MenuTab";
 import {
   StoryChapter,
   BookRecommendation,
@@ -57,7 +59,7 @@ const INITIAL_SOCIAL_POSTS: SocialFeedPost[] = [];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "story" | "books" | "creative" | "social"
+    "dashboard" | "story" | "books" | "creative" | "social" | "menu"
   >("dashboard");
 
   // Theme state for light and dark mode toggling
@@ -752,6 +754,17 @@ export default function App() {
           >
             <MessageSquare className="w-4 h-4" /> Social Hub
           </button>
+
+          <button
+            onClick={() => setActiveTab("menu")}
+            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+              activeTab === "menu"
+                ? "bg-amber-500 text-slate-950 shadow-sm"
+                : "text-slate-300 hover:bg-white/10"
+            }`}
+          >
+            <Menu className="w-4 h-4" /> Menu
+          </button>
         </nav>
 
         {/* Quick User Badge */}
@@ -850,6 +863,12 @@ export default function App() {
             className={`px-4 py-2 rounded-full font-medium ${activeTab === "social" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
           >
             💬 Social Wall
+          </button>
+          <button
+            onClick={() => setActiveTab("menu")}
+            className={`px-4 py-2 rounded-full font-medium flex items-center gap-1 ${activeTab === "menu" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
+          >
+            <Menu className="w-4 h-4" /> Menu
           </button>
         </div>
       </div>
@@ -2398,6 +2417,10 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
+          )}
+
+          {activeTab === "menu" && (
+            <MenuTab key="menu" />
           )}
         </AnimatePresence>
       </main>
