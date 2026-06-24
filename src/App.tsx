@@ -696,7 +696,7 @@ export default function App() {
       {/* PM Shri Premium Bento Nav Header */}
       <header
         id="app-bento-header"
-        className="h-16 md:h-18 sticky top-0 z-40 bg-slate-900 border-b border-indigo-900 text-white shadow-md px-3 md:px-8 flex items-center justify-between gap-2"
+        className="h-16 md:h-18 sticky top-0 z-40 bg-slate-900/80 backdrop-blur-xl border-b border-indigo-900/50 text-white shadow-md px-3 md:px-8 flex items-center justify-between gap-2 transition-all duration-300"
       >
         <div className="flex items-center gap-2 md:gap-3 flex-shrink min-w-0">
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center bg-white overflow-hidden border border-slate-700/50 shadow flex-shrink-0">
@@ -711,8 +711,7 @@ export default function App() {
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
               <span className="text-[9px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-sans tracking-wide whitespace-nowrap flex-shrink-0">
-                <span className="md:hidden">PM SHRI</span>
-                <span className="hidden md:inline">PM SHRI SCHOOL</span>
+                PM SHRI SCHOOL
               </span>
               <span className="hidden sm:inline text-[10px] md:text-[11px] font-mono text-cyan-400 whitespace-nowrap truncate min-w-0">
                 IIT POWAI SECTOR
@@ -726,87 +725,36 @@ export default function App() {
 
         {/* Navigation Tabs aligned horizontally */}
         <nav className="hidden 2xl:flex items-center gap-1.5 text-xs font-semibold flex-shrink-0">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
-              activeTab === "dashboard"
-                ? "bg-amber-500 text-slate-950 shadow-sm"
-                : "text-slate-300 hover:bg-white/10"
-            }`}
-          >
-            <LayoutGrid className="w-4 h-4" /> Bulletin & Desk
-          </button>
-
-          {currentUser && (
+          {[
+            { id: "dashboard", label: "Bulletin & Desk", icon: <LayoutGrid className="w-4 h-4" /> },
+            ...(currentUser ? [{ id: "story", label: "AI Interactive Storyteller", icon: <Sparkles className="w-4 h-4" /> }] : []),
+            { id: "books", label: "Recent Books", icon: <BookOpen className="w-4 h-4" /> },
+            ...(currentUser ? [{ id: "creative", label: "Creative Hub", icon: <PenTool className="w-4 h-4" /> }] : []),
+            { id: "social", label: "Social Hub", icon: <MessageSquare className="w-4 h-4" /> },
+            { id: "magazine", label: "Magazine", icon: <BookMarked className="w-4 h-4" /> },
+            { id: "menu", label: "Menu", icon: <Menu className="w-4 h-4" /> }
+          ].map((tab) => (
             <button
-              onClick={() => setActiveTab("story")}
-              className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
-                activeTab === "story"
-                  ? "bg-amber-500 text-slate-950 shadow-sm"
-                  : "text-slate-300 hover:bg-white/10"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`relative px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 group ${
+                activeTab === tab.id
+                  ? "text-slate-950"
+                  : "text-slate-300 hover:text-white"
               }`}
             >
-              <Sparkles className="w-4 h-4 text-amber-300 group-hover:animate-pulse" />{" "}
-              AI Interactive Storyteller
+              {activeTab === tab.id && (
+                <motion.div 
+                  layoutId="nav-desktop-pill" 
+                  className="absolute inset-0 bg-amber-500 rounded-lg shadow-sm"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10 flex items-center gap-1.5">
+                {tab.icon} {tab.label}
+              </span>
             </button>
-          )}
-
-          <button
-            onClick={() => setActiveTab("books")}
-            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
-              activeTab === "books"
-                ? "bg-amber-500 text-slate-950 shadow-sm"
-                : "text-slate-300 hover:bg-white/10"
-            }`}
-          >
-            <BookOpen className="w-4 h-4" /> Recent Books
-          </button>
-
-          {currentUser && (
-            <button
-              onClick={() => setActiveTab("creative")}
-              className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
-                activeTab === "creative"
-                  ? "bg-amber-500 text-slate-950 shadow-sm"
-                  : "text-slate-300 hover:bg-white/10"
-              }`}
-            >
-              <PenTool className="w-4 h-4" /> Creative Hub
-            </button>
-          )}
-
-          <button
-            onClick={() => setActiveTab("social")}
-            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
-              activeTab === "social"
-                ? "bg-amber-500 text-slate-950 shadow-sm"
-                : "text-slate-300 hover:bg-white/10"
-            }`}
-          >
-            <MessageSquare className="w-4 h-4" /> Social Hub
-          </button>
-
-          <button
-            onClick={() => setActiveTab("magazine")}
-            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
-              activeTab === "magazine"
-                ? "bg-amber-500 text-slate-950 shadow-sm"
-                : "text-slate-300 hover:bg-white/10"
-            }`}
-          >
-            <BookMarked className="w-4 h-4" /> Magazine
-          </button>
-
-          <button
-            onClick={() => setActiveTab("menu")}
-            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
-              activeTab === "menu"
-                ? "bg-amber-500 text-slate-950 shadow-sm"
-                : "text-slate-300 hover:bg-white/10"
-            }`}
-          >
-            <Menu className="w-4 h-4" /> Menu
-          </button>
+          ))}
         </nav>
 
         {/* Quick User Badge */}
@@ -872,52 +820,34 @@ export default function App() {
       {/* Tab Navigation for Mobile Systems */}
       <div className="2xl:hidden bg-slate-800 text-slate-100 overflow-x-auto whitespace-nowrap scrollbar-none border-b border-indigo-950">
         <div className="flex px-4 py-2 gap-2 text-xs">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`px-4 py-2 rounded-full font-medium ${activeTab === "dashboard" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
-          >
-            Bulletin
-          </button>
-          {currentUser && (
+          {[
+            { id: "dashboard", label: "Bulletin", icon: null },
+            ...(currentUser ? [{ id: "story", label: "✨ AI Storytelling", icon: null }] : []),
+            { id: "books", label: "📖 Recent Books", icon: null },
+            ...(currentUser ? [{ id: "creative", label: "✍️ Writing Lab", icon: null }] : []),
+            { id: "social", label: "💬 Social Wall", icon: null },
+            { id: "magazine", label: "Magazine", icon: <BookMarked className="w-3.5 h-3.5" /> },
+            { id: "menu", label: "Menu", icon: <Menu className="w-3.5 h-3.5" /> }
+          ].map((tab) => (
             <button
-              onClick={() => setActiveTab("story")}
-              className={`px-4 py-2 rounded-full font-medium flex items-center gap-1 ${activeTab === "story" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`relative px-4 py-2 rounded-full font-medium flex items-center gap-1.5 transition-colors ${
+                activeTab === tab.id ? "text-slate-900" : "bg-slate-700/50 text-slate-200 hover:bg-slate-700"
+              }`}
             >
-              ✨ AI Storytelling
+              {activeTab === tab.id && (
+                <motion.div 
+                  layoutId="nav-mobile-pill" 
+                  className="absolute inset-0 bg-amber-500 rounded-full"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10 flex items-center gap-1">
+                {tab.icon} {tab.label}
+              </span>
             </button>
-          )}
-          <button
-            onClick={() => setActiveTab("books")}
-            className={`px-4 py-2 rounded-full font-medium ${activeTab === "books" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
-          >
-            📖 Recent Books
-          </button>
-          {currentUser && (
-            <button
-              onClick={() => setActiveTab("creative")}
-              className={`px-4 py-2 rounded-full font-medium ${activeTab === "creative" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
-            >
-              ✍️ Writing Lab
-            </button>
-          )}
-          <button
-            onClick={() => setActiveTab("social")}
-            className={`px-4 py-2 rounded-full font-medium ${activeTab === "social" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
-          >
-            💬 Social Wall
-          </button>
-          <button
-            onClick={() => setActiveTab("magazine")}
-            className={`px-4 py-2 rounded-full font-medium flex items-center gap-1 ${activeTab === "magazine" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
-          >
-            <BookMarked className="w-4 h-4" /> Magazine
-          </button>
-          <button
-            onClick={() => setActiveTab("menu")}
-            className={`px-4 py-2 rounded-full font-medium flex items-center gap-1 ${activeTab === "menu" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
-          >
-            <Menu className="w-4 h-4" /> Menu
-          </button>
+          ))}
         </div>
       </div>
 
@@ -966,9 +896,10 @@ export default function App() {
           {activeTab === "dashboard" && (
             <motion.div
               key="dash"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="space-y-6"
             >
               <WelcomeTab
@@ -1070,8 +1001,10 @@ export default function App() {
           {activeTab === "story" && (
             <motion.div
               key="story-tab"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="grid grid-cols-1 lg:grid-cols-12 gap-8"
             >
               {/* Sidebar Settings Panel for Story */}
@@ -1431,8 +1364,10 @@ export default function App() {
           {activeTab === "books" && (
             <motion.div
               key="books-tab"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="space-y-6"
             >
               {/* Optional Reservation Alert feedback banner */}
@@ -1763,8 +1698,10 @@ export default function App() {
           {activeTab === "creative" && (
             <motion.div
               key="creative-tab"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="grid grid-cols-1 lg:grid-cols-12 gap-8"
             >
               {/* Sidebar Input form */}
@@ -2000,8 +1937,10 @@ export default function App() {
           {activeTab === "social" && (
             <motion.div
               key="social-tab"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="grid grid-cols-1 lg:grid-cols-12 gap-8"
             >
               {/* Creator segment */}
@@ -2468,11 +2407,27 @@ export default function App() {
           )}
 
           {activeTab === "menu" && (
-            <MenuTab key="menu" />
+            <motion.div
+              key="menu"
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <MenuTab />
+            </motion.div>
           )}
 
           {activeTab === "magazine" && (
-            <MagazineTab key="magazine" />
+            <motion.div
+              key="magazine"
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <MagazineTab />
+            </motion.div>
           )}
         </AnimatePresence>
       </main>

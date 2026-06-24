@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { BookOpen, Calendar, HelpCircle, Award, Compass, ShieldAlert, Sparkles, User, FileText, CheckCircle2 } from "lucide-react";
 import { NoticeItem, LibraryStat, UserType } from "../types";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 
 interface WelcomeTabProps {
   onNavigateToAIStories: () => void;
@@ -13,7 +13,9 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
   const [selectedNotice, setSelectedNotice] = useState<NoticeItem | null>(null);
 
   const stats: LibraryStat[] = [
-    { label: "Total Books", value: "18,450+", iconName: "books", description: "Vast collection from young reader classics to advanced scientific encyclopedias" },
+    { label: "Total Books", value: "18,450+", iconName: "books", description: "Vast collection from young reader classics to encyclopedias" },
+    { label: "Active Readers", value: "2,100+", iconName: "users", description: "Students, teachers, and staff engaging with our digital resources" },
+    { label: "Digital Realms", value: "15+", iconName: "compass", description: "Interactive AI story realms and creative learning laboratories" },
   ];
 
   const notices: NoticeItem[] = [
@@ -74,10 +76,29 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
     }
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  };
+
   return (
-    <div id="welcome-tab-container" className="space-y-8">
+    <motion.div 
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      id="welcome-tab-container" 
+      className="space-y-8"
+    >
       {/* Prime Minister Shri KV Flagship Banner */}
-      <div id="pm-shri-header-banner" className="relative overflow-hidden bg-gradient-to-r from-red-900 to-amber-900 text-white rounded-3xl p-8 md:p-12 shadow-xl border border-amber-500/20">
+      <motion.div variants={itemVariants} id="pm-shri-header-banner" className="relative overflow-hidden bg-gradient-to-r from-red-900 to-amber-900 text-white rounded-3xl p-8 md:p-12 shadow-xl border border-amber-500/20">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-red-500/10 rounded-full blur-2xl -ml-24 -mb-24"></div>
         
@@ -127,27 +148,27 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Library Stats Board */}
-      <div id="library-metrics-grid" className="max-w-md">
+      <motion.div variants={itemVariants} id="library-metrics-grid" className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat, idx) => (
-          <div key={idx} className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+          <motion.div whileHover={{ y: -5 }} key={idx} className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
             <div className="absolute -right-2 -bottom-2 text-slate-50 dark:text-slate-800/20 opacity-40 group-hover:scale-110 transition-transform">
               <BookOpen className="w-24 h-24 stroke-[0.5]" />
             </div>
             <div className="text-slate-400 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">{stat.label}</div>
             <div className="text-3xl font-bold text-slate-800 dark:text-slate-100 tracking-tight mb-2 group-hover:text-red-800 dark:group-hover:text-red-400 transition-colors">{stat.value}</div>
             <p className="text-slate-500 dark:text-slate-300 text-xs leading-relaxed relative z-10">{stat.description}</p>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* Main Split: Notice Board and Rules */}
       <div id="notice-rules-split-view" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Notice Board & PM Shri Announcements */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+        <motion.div variants={itemVariants} className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/40 flex items-center justify-center text-red-800 dark:text-red-400">
@@ -164,10 +185,15 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
           </div>
 
           <div className="space-y-4">
-            {notices.map((notice) => (
-              <div 
+            {notices.map((notice, idx) => (
+              <motion.div 
                 key={notice.id} 
                 onClick={() => setSelectedNotice(notice)}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.1 }}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
                 className="flex flex-col md:flex-row gap-4 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-red-100 dark:hover:border-red-900 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 cursor-pointer transition-all group"
               >
                 <div className="flex items-start gap-3 md:w-3/4">
@@ -208,13 +234,13 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                     </span>
                   )}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* Library Rules Panel */}
-        <div className="bg-gradient-to-b from-slate-50 to-white dark:from-slate-900/40 dark:to-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm space-y-6">
+        <motion.div variants={itemVariants} className="bg-gradient-to-b from-slate-50 to-white dark:from-slate-900/40 dark:to-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/40 flex items-center justify-center text-amber-800 dark:text-amber-300 font-bold">
               <ShieldAlert className="w-5 h-5" />
@@ -227,18 +253,24 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
 
           <div className="space-y-4">
             {rules.map((rule, idx) => (
-              <div key={idx} className="flex gap-3 text-sm">
+              <motion.div 
+                key={idx} 
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4 + (idx * 0.1) }}
+                className="flex gap-3 text-sm"
+              >
                 <CheckCircle2 className="w-4 h-4 text-red-800 dark:text-amber-500 flex-shrink-0 mt-0.5" />
                 <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-xs">{rule}</p>
-              </div>
+              </motion.div>
             ))}
           </div>
-        </div>
+        </motion.div>
 
       </div>
 
       {/* Librarian Profile and Welcome Message */}
-      <div id="librarian-welcome-message-panel" className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+      <motion.div variants={itemVariants} id="librarian-welcome-message-panel" className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
           <div className="w-20 h-20 rounded-full bg-red-800 text-white flex items-center justify-center text-3xl font-semibold shadow-inner flex-shrink-0 border-4 border-amber-500/10">
             AK
@@ -258,9 +290,10 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
             </p>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Selected Notice Dialog Modal */}
+      <AnimatePresence>
       {selectedNotice && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <motion.div 
@@ -304,6 +337,7 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
           </motion.div>
         </div>
       )}
-    </div>
+      </AnimatePresence>
+    </motion.div>
   );
 }
