@@ -99,6 +99,9 @@ export default function App() {
     setCurrentUser(null);
     setStudentName("Guest Scholar");
     setStudentClass("Class V-A");
+    if (activeTab === "story" || activeTab === "creative") {
+      setActiveTab("dashboard");
+    }
     try {
       localStorage.removeItem("kv_library_token");
       localStorage.removeItem("kv_library_user");
@@ -701,17 +704,19 @@ export default function App() {
             <LayoutGrid className="w-4 h-4" /> Bulletin & Desk
           </button>
 
-          <button
-            onClick={() => setActiveTab("story")}
-            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
-              activeTab === "story"
-                ? "bg-amber-500 text-slate-950 shadow-sm"
-                : "text-slate-300 hover:bg-white/10"
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-amber-300 group-hover:animate-pulse" />{" "}
-            AI Interactive Storyteller
-          </button>
+          {currentUser && (
+            <button
+              onClick={() => setActiveTab("story")}
+              className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeTab === "story"
+                  ? "bg-amber-500 text-slate-950 shadow-sm"
+                  : "text-slate-300 hover:bg-white/10"
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-amber-300 group-hover:animate-pulse" />{" "}
+              AI Interactive Storyteller
+            </button>
+          )}
 
           <button
             onClick={() => setActiveTab("books")}
@@ -724,16 +729,18 @@ export default function App() {
             <BookOpen className="w-4 h-4" /> Recent Books
           </button>
 
-          <button
-            onClick={() => setActiveTab("creative")}
-            className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
-              activeTab === "creative"
-                ? "bg-amber-500 text-slate-950 shadow-sm"
-                : "text-slate-300 hover:bg-white/10"
-            }`}
-          >
-            <PenTool className="w-4 h-4" /> Creative Hub
-          </button>
+          {currentUser && (
+            <button
+              onClick={() => setActiveTab("creative")}
+              className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeTab === "creative"
+                  ? "bg-amber-500 text-slate-950 shadow-sm"
+                  : "text-slate-300 hover:bg-white/10"
+              }`}
+            >
+              <PenTool className="w-4 h-4" /> Creative Hub
+            </button>
+          )}
 
           <button
             onClick={() => setActiveTab("social")}
@@ -816,24 +823,28 @@ export default function App() {
           >
             Bulletin
           </button>
-          <button
-            onClick={() => setActiveTab("story")}
-            className={`px-4 py-2 rounded-full font-medium flex items-center gap-1 ${activeTab === "story" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
-          >
-            ✨ AI Storytelling
-          </button>
+          {currentUser && (
+            <button
+              onClick={() => setActiveTab("story")}
+              className={`px-4 py-2 rounded-full font-medium flex items-center gap-1 ${activeTab === "story" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
+            >
+              ✨ AI Storytelling
+            </button>
+          )}
           <button
             onClick={() => setActiveTab("books")}
             className={`px-4 py-2 rounded-full font-medium ${activeTab === "books" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
           >
             📖 Recent Books
           </button>
-          <button
-            onClick={() => setActiveTab("creative")}
-            className={`px-4 py-2 rounded-full font-medium ${activeTab === "creative" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
-          >
-            ✍️ Writing Lab
-          </button>
+          {currentUser && (
+            <button
+              onClick={() => setActiveTab("creative")}
+              className={`px-4 py-2 rounded-full font-medium ${activeTab === "creative" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
+            >
+              ✍️ Writing Lab
+            </button>
+          )}
           <button
             onClick={() => setActiveTab("social")}
             className={`px-4 py-2 rounded-full font-medium ${activeTab === "social" ? "bg-amber-500 text-slate-900" : "bg-slate-700 text-slate-200"}`}
@@ -896,6 +907,7 @@ export default function App() {
               <WelcomeTab
                 onNavigateToAIStories={() => setActiveTab("story")}
                 onNavigateToBooks={() => setActiveTab("books")}
+                currentUser={currentUser}
               />
 
               {/* Grid Layout containing Bento-style library highlights */}

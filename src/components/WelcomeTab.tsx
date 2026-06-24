@@ -1,14 +1,15 @@
 import React, { useState } from "react";
 import { BookOpen, Calendar, HelpCircle, Award, Compass, ShieldAlert, Sparkles, User, FileText, CheckCircle2 } from "lucide-react";
-import { NoticeItem, LibraryStat } from "../types";
+import { NoticeItem, LibraryStat, UserType } from "../types";
 import { motion } from "motion/react";
 
 interface WelcomeTabProps {
   onNavigateToAIStories: () => void;
   onNavigateToBooks: () => void;
+  currentUser: UserType | null;
 }
 
-export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks }: WelcomeTabProps) {
+export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, currentUser }: WelcomeTabProps) {
   const [selectedNotice, setSelectedNotice] = useState<NoticeItem | null>(null);
 
   const stats: LibraryStat[] = [
@@ -91,12 +92,14 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks }:
               Nurturing scientific temper, critical enquiry, and literary wonder beside Powai Lake. Step into India’s flagship school digital library portal equipped with interactive AI learning experiences.
             </p>
             <div className="flex flex-wrap items-center gap-4 pt-2 justify-center md:justify-start">
-              <button
-                onClick={onNavigateToAIStories}
-                className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-medium rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 inline-flex items-center gap-2"
-              >
-                <Sparkles className="w-4 h-4" /> Try AI Storyteller
-              </button>
+              {currentUser && (
+                <button
+                  onClick={onNavigateToAIStories}
+                  className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-medium rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 inline-flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" /> Try AI Storyteller
+                </button>
+              )}
               <button
                 onClick={onNavigateToBooks}
                 className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl border border-white/20 transition-all inline-flex items-center gap-2"
