@@ -60,9 +60,38 @@ import { RECENT_BOOKS_DATA } from "./data/recentBooks";
 const INITIAL_SOCIAL_POSTS: SocialFeedPost[] = [];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<
-    "dashboard" | "story" | "books" | "creative" | "social" | "menu" | "magazine"
-  >("dashboard");
+  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine"] as const;
+  type TabType = typeof validTabs[number];
+
+  const [activeTab, setActiveTabState] = useState<TabType>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      return validTabs.includes(tab as any) ? (tab as TabType) : "dashboard";
+    } catch (e) {
+      return "dashboard";
+    }
+  });
+
+  const setActiveTab = (tab: TabType) => {
+    setActiveTabState(tab);
+    try {
+      const newUrl = `${window.location.pathname}?tab=${tab}${window.location.hash}`;
+      window.history.pushState({ tab }, "", newUrl);
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get("tab");
+        setActiveTabState(validTabs.includes(tab as any) ? (tab as TabType) : "dashboard");
+      } catch (e) {}
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Theme state for light and dark mode toggling
   const [theme, setTheme] = useState<"light" | "dark">(() => {
