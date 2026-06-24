@@ -224,14 +224,6 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks }:
               </div>
             ))}
           </div>
-
-          {/* Quick FAQ note */}
-          <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/20 dark:border-amber-900/30 flex gap-3 text-xs text-amber-900 dark:text-amber-200 mt-2">
-            <HelpCircle className="w-5 h-5 text-amber-700 dark:text-amber-400 flex-shrink-0" />
-            <p className="leading-relaxed">
-              <strong>Need a study room reservation?</strong> PM Shri students can reserve Collaborative Group Cubes via the library front desk.
-            </p>
-          </div>
         </div>
 
       </div>
