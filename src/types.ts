@@ -6,6 +6,7 @@ export interface NoticeItem {
   content: string;
   badge?: string;
   priority: "High" | "Normal";
+  imageUrl?: string;
 }
 
 export interface LibraryStat {

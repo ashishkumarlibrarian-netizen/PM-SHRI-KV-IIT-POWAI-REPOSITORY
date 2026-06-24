@@ -24,7 +24,8 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
       category: "Activity",
       content: "If you do not find a taker, deposit your books in the Library Green Book Bank. If you are looking for a gift (of books), get it from a student of your class or from the Library Green Book Bank. Old Books Can Shape Someone's Future.",
       badge: "Book Drive",
-      priority: "High"
+      priority: "High",
+      imageUrl: "/pustakouphar.jpeg"
     },
     {
       id: "2",
@@ -177,6 +178,11 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                     <h3 className="font-semibold text-slate-800 dark:text-slate-100 group-hover:text-red-900 dark:group-hover:text-red-400 transition-colors">
                       {notice.title}
                     </h3>
+                    {notice.imageUrl && (
+                      <div className="mt-2 mb-2 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 max-w-sm hidden md:block">
+                         <img src={notice.imageUrl} alt={notice.title} className="w-full h-32 object-cover" />
+                      </div>
+                    )}
                     <p className="text-slate-500 dark:text-slate-300 text-sm line-clamp-1">{notice.content}</p>
                     <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-400">
                       <span>{notice.date}</span>
@@ -278,6 +284,12 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
             
             <h3 className="text-xl font-bold text-slate-800 mb-2">{selectedNotice.title}</h3>
             <div className="text-xs text-slate-400 mb-4 font-mono">{selectedNotice.date}</div>
+            
+            {selectedNotice.imageUrl && (
+              <div className="mb-4 rounded-xl overflow-hidden border border-slate-100 shadow-sm">
+                <img src={selectedNotice.imageUrl} alt={selectedNotice.title} className="w-full h-auto object-cover max-h-64" />
+              </div>
+            )}
             
             <p className="text-slate-600 leading-relaxed text-sm mb-6">{selectedNotice.content}</p>
             
