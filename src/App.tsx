@@ -866,17 +866,6 @@ export default function App() {
                   className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-0.5 text-xs text-slate-800 dark:text-slate-100 w-28 sm:w-32 focus:outline-none focus:border-amber-500"
                   placeholder="Name"
                 />
-                <select
-                  value={studentClass}
-                  onChange={(e) => setStudentClass(e.target.value)}
-                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-0.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-amber-500"
-                >
-                <option>Class V-A</option>
-                <option>Class VIII-C</option>
-                <option>Class X-B</option>
-                <option>Class XI-A</option>
-                <option>Class XII-B</option>
-              </select>
             </div>
             </div>
           )}
