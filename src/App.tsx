@@ -2427,13 +2427,9 @@ export default function App() {
             </a>
             <span>•</span>
             <a
-              href="#ai-ethics"
-              onClick={(e) => {
-                e.preventDefault();
-                alert(
-                  "AI interaction behaves responsibly under NEP 2020 frameworks. No student PII data is transmitted.",
-                );
-              }}
+              href="https://www.tigera.io/learn/guides/llm-security/ai-safety/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="hover:text-amber-400"
             >
               AI Safety Guidelines
