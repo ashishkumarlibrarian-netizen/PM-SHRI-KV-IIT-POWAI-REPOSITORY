@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
+import OpenAI from "openai";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import fs from "fs";
@@ -261,7 +262,7 @@ Be creative! Generate a beautiful JSON response that strictly complies with the 
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: promptContent,
       config: {
         responseMimeType: "application/json",
@@ -323,7 +324,7 @@ Return a JSON array strictly complying with the schema.
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: recommendationPrompt,
       config: {
         responseMimeType: "application/json",
@@ -380,7 +381,7 @@ Format the response strictly as a JSON object adhering to the schema.
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: creativePrompt,
       config: {
         responseMimeType: "application/json",
@@ -412,9 +413,46 @@ Format the response strictly as a JSON object adhering to the schema.
 });
 
 
+// Lazy-initialization utility for OpenAI API
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) {
+      throw new Error("OPENAI_API_KEY environment variable is required but missing.");
+    }
+    openaiClient = new OpenAI({
+      apiKey: key,
+    });
+  }
+  return openaiClient;
+}
+
 // ----------------------------------------------------------------------------
 // Real-time Library Wall Social Feed APIs
 // ----------------------------------------------------------------------------
+
+app.post("/api/creative/image", async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    const openai = getOpenAI();
+
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+    });
+
+    res.json({ imageUrl: response.data[0].url });
+  } catch (error: any) {
+    console.error("Image generation failed:", error);
+    res.status(500).json({
+      error: "Unable to generate image right now.",
+      details: error.message,
+    });
+  }
+});
 
 const SOCIAL_POSTS_FILE = path.join(process.cwd(), "data", "social_posts.json");
 
