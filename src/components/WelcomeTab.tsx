@@ -19,15 +19,24 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
   const notices: NoticeItem[] = [
     {
       id: "1",
+      title: "PUSTAKOUPHAR: Gift a Book, Share a Smile!",
+      date: "April 01, 2026 - April 05, 2026",
+      category: "Activity",
+      content: "If you do not find a taker, deposit your books in the Library Green Book Bank. If you are looking for a gift (of books), get it from a student of your class or from the Library Green Book Bank. Old Books Can Shape Someone's Future.",
+      badge: "Book Drive",
+      priority: "High"
+    },
+    {
+      id: "2",
       title: "PM Shri e-Learning Corner Inaugration",
       date: "June 20, 2026",
       category: "PM-Shri",
       content: "We are thrilled to unveil our new AI-enabled interactive e-Learning desks, funded under the prestigious PM Shri School development project. Students can now access personalized AI reading guides, digital encyclopedias, and creative writing widgets.",
       badge: "NEP 2020",
-      priority: "High"
+      priority: "Normal"
     },
     {
-      id: "2",
+      id: "3",
       title: "National Reading Week: Book Review contest",
       date: "June 25, 2026",
       category: "Competition",
@@ -36,32 +45,23 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
       priority: "Normal"
     },
     {
-      id: "3",
+      id: "4",
       title: "IIT Powai Guest Lecture: 'The Universe in a Library'",
       date: "July 02, 2026",
       category: "Activity",
       content: "Join us for a stimulating talk in the Library Seminar Hall by Prof. Dr. S. Ramachandran from IIT Bombay (Powai). He will discuss how science, philosophy, and books expand our cosmos. Open for Standards IX to XII.",
       badge: "Special Event",
-      priority: "High"
-    },
-    {
-      id: "4",
-      title: "Monsoon Book Protection drive",
-      date: "June 18, 2026",
-      category: "Notice",
-      content: "As the Mumbai rains commence over Powai Lake, we urge all student readers to protect library books from humidity. Carry water-resistant bags and ensure no pages are wet. Let's keep our book friends dry and safe!",
-      badge: "Care",
       priority: "Normal"
     }
   ];
 
   const rules = [
-    "A quiet library is a healthy library. Please maintan absolute silence in the Reading Room.",
-    "Handle all books with clean, dry hands. Turn pages gently from the top-right corner.",
-    "Maximum of 2 books can be borrowed at any time for a duration of 14 days.",
-    "Re-shelving is our job! Kindly place read books in the drop cart or leave them on your table.",
-    "AI Learning Desks are only to be used for educational research and reading activities.",
-    "Bags and food items are strictly prohibited inside the main bookshelves section."
+    "Books are for use.",
+    "Every reader his/her book.",
+    "Every book its reader.",
+    "Save the time of the reader.",
+    "Library is a growing organism.",
+    "– The Five Laws of Library Science by Dr. S. R. Ranganathan"
   ];
 
   const renderIcon = (type: string) => {
