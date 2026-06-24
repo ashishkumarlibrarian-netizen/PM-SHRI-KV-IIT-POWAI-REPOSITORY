@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import kvLogo from "./assets/images/kv_logo_1782202542204.jpg";
 import {
   BookOpen,
   Sparkles,
@@ -61,12 +62,18 @@ export default function App() {
 
   // Theme state for light and dark mode toggling
   const [theme, setTheme] = useState<"light" | "dark">(() => {
-    const saved = localStorage.getItem("kv_library_theme");
-    return saved === "dark" ? "dark" : "light";
+    try {
+      const saved = localStorage.getItem("kv_library_theme");
+      return saved === "dark" ? "dark" : "light";
+    } catch (e) {
+      return "light";
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem("kv_library_theme", theme);
+    try {
+      localStorage.setItem("kv_library_theme", theme);
+    } catch (e) {}
     if (theme === "dark") {
       document.documentElement.classList.add("dark");
     } else {
@@ -82,32 +89,41 @@ export default function App() {
     setCurrentUser(user);
     setStudentName(user.fullName);
     setStudentClass(user.className);
-    localStorage.setItem("kv_library_token", token);
-    localStorage.setItem("kv_library_user", JSON.stringify(user));
+    try {
+      localStorage.setItem("kv_library_token", token);
+      localStorage.setItem("kv_library_user", JSON.stringify(user));
+    } catch (e) {}
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     setStudentName("Guest Scholar");
     setStudentClass("Class V-A");
-    localStorage.removeItem("kv_library_token");
-    localStorage.removeItem("kv_library_user");
+    try {
+      localStorage.removeItem("kv_library_token");
+      localStorage.removeItem("kv_library_user");
+    } catch (e) {}
   };
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("kv_library_token");
-    const savedUserStr = localStorage.getItem("kv_library_user");
-    if (savedToken && savedUserStr) {
-      try {
-        const savedUser = JSON.parse(savedUserStr);
-        setCurrentUser(savedUser);
-        setStudentName(savedUser.fullName);
-        setStudentClass(savedUser.className);
-      } catch (e) {
-        localStorage.removeItem("kv_library_token");
-        localStorage.removeItem("kv_library_user");
+    try {
+      const savedToken = localStorage.getItem("kv_library_token");
+      const savedUserStr = localStorage.getItem("kv_library_user");
+      if (savedToken && savedUserStr) {
+        try {
+          const savedUser = JSON.parse(savedUserStr);
+          setCurrentUser(savedUser);
+          setStudentName(savedUser.fullName);
+          setStudentClass(savedUser.className);
+        } catch (e) {
+          localStorage.removeItem("kv_library_token");
+          localStorage.removeItem("kv_library_user");
+        }
+      } else {
+        setStudentName("Guest Scholar");
+        setStudentClass("Class V-A");
       }
-    } else {
+    } catch (e) {
       setStudentName("Guest Scholar");
       setStudentClass("Class V-A");
     }
@@ -649,7 +665,7 @@ export default function App() {
         <div className="flex items-center gap-2 md:gap-3 flex-shrink min-w-0">
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center bg-white overflow-hidden border border-slate-700/50 shadow flex-shrink-0">
             <img
-              src="/src/assets/images/kv_logo_1782202542204.jpg"
+              src={kvLogo}
               alt="PM Shri KV IIT Powai Library Logo"
               title="PM Shri KV IIT Powai Library"
               className="w-full h-full object-cover"
