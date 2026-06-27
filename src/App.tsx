@@ -44,6 +44,7 @@ import {
   Share2,
   Linkedin,
   Layers,
+  X,
 } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
 import MenuTab from "./components/MenuTab";
@@ -117,6 +118,9 @@ export default function App() {
       document.documentElement.classList.remove("dark");
     }
   }, [theme]);
+
+  // Welcome modal state
+  const [showWelcomeModal, setShowWelcomeModal] = useState(true);
 
   // Real authentication states
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
@@ -697,6 +701,51 @@ export default function App() {
     <div
       className={`min-h-screen ${theme === "dark" ? "dark bg-slate-950 text-slate-100" : "bg-[#f8fafc] text-indigo-950"} font-sans flex flex-col antialiased transition-colors duration-300`}
     >
+      {/* Welcome Modal */}
+      {showWelcomeModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+            <div className="p-6 md:p-8 space-y-6 overflow-y-auto">
+              <div className="flex justify-between items-start">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+                  Welcome to the PM SHRI KV IIT Powai Library
+                </h2>
+                <button
+                  onClick={() => setShowWelcomeModal(false)}
+                  className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors flex-shrink-0 ml-4"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="prose prose-slate dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 space-y-4 text-sm md:text-base leading-relaxed">
+                <p>
+                  Welcome to the official digital gateway of the <strong>PM SHRI KV IIT Powai Library</strong>. Our library is a vibrant centre of knowledge, learning, and discovery, committed to nurturing intellectual curiosity, creativity, and a lifelong love for reading. We strive to provide a welcoming and inclusive environment where every student is encouraged to explore ideas, develop critical thinking skills, and grow into confident, informed learners.
+                </p>
+                <p>
+                  Our collection of books, digital resources, journals, and educational materials is carefully curated to support academic excellence as well as personal enrichment. Beyond providing access to information, the library serves as a dynamic learning space that promotes innovation, collaboration, and independent inquiry.
+                </p>
+                <p>
+                  Through this website, you can explore our library services, discover new arrivals, access digital resources, participate in reading initiatives, and stay updated with the latest events, activities, and announcements. We warmly invite students, teachers, parents, and visitors to make the most of the opportunities our library offers.
+                </p>
+                <p className="font-medium text-indigo-700 dark:text-indigo-400">
+                  Together, let us celebrate the joy of reading, the pursuit of knowledge, and the spirit of lifelong learning.
+                </p>
+              </div>
+              
+              <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800 mt-auto">
+                <button
+                  onClick={() => setShowWelcomeModal(false)}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm"
+                >
+                  Enter Library
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PM Shri Premium Bento Nav Header */}
       <header
         id="app-bento-header"
