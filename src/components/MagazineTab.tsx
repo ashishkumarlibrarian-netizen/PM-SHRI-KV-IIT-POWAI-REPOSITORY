@@ -8,7 +8,8 @@ export default function MagazineTab() {
       title: "Vol. 1, Issue 4 - Winter 2024",
       description: "Year-end reflections, sports achievements, and the grand winter gala.",
       coverColor: "bg-indigo-600",
-      date: "January 2025"
+      date: "May 2026",
+      readLink: "https://online.fliphtml5.com/caravan76/CARAVAN-QUATERLY-MAGAZINE-2026/#p=1"
     },
     {
       title: "Vol. 1, Issue 3 - Autumn 2024",
@@ -77,9 +78,15 @@ export default function MagazineTab() {
               <p className="text-slate-400 text-sm mb-4 flex-grow">{issue.description}</p>
               
               <div className="flex items-center gap-2 mt-auto pt-4 border-t border-slate-700/50">
-                <button className="flex-grow bg-slate-700 hover:bg-amber-500 hover:text-slate-900 text-slate-200 text-sm font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
-                  <BookOpen className="w-4 h-4" /> Read Issue
-                </button>
+                {issue.readLink ? (
+                  <a href={issue.readLink} target="_blank" rel="noopener noreferrer" className="flex-grow bg-slate-700 hover:bg-amber-500 hover:text-slate-900 text-slate-200 text-sm font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
+                    <BookOpen className="w-4 h-4" /> Read Issue
+                  </a>
+                ) : (
+                  <button className="flex-grow bg-slate-700 hover:bg-amber-500 hover:text-slate-900 text-slate-200 text-sm font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
+                    <BookOpen className="w-4 h-4" /> Read Issue
+                  </button>
+                )}
                 <button className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors" title="Download PDF">
                   <Download className="w-4 h-4" />
                 </button>

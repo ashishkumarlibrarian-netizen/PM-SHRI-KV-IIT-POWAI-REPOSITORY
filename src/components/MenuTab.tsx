@@ -18,7 +18,8 @@ export default function MenuTab() {
       title: "Educational Frameworks",
       links: [
         { title: "NEP 2020 Complete Document", icon: <FileText className="w-5 h-5" />, url: "https://www.education.gov.in/sites/upload_files/mhrd/files/NEP_Final_English_0.pdf" },
-        { title: "National Curriculum Framework (NCF)", icon: <GraduationCap className="w-5 h-5" />, url: "https://ncert.nic.in/pdf/NCF2023.pdf" }
+        { title: "The National Curriculum Framework (NCF)", icon: <GraduationCap className="w-5 h-5" />, url: "https://ncf.ncert.gov.in/#/web/home" },
+        { title: "CBSE websites", icon: <Globe className="w-5 h-5" />, url: "https://www.cbse.gov.in/" }
       ]
     },
     {
@@ -27,7 +28,8 @@ export default function MenuTab() {
         { title: "Kendriya Vidyalaya Sangathan HQ", icon: <School className="w-5 h-5" />, url: "https://kvsangathan.nic.in/" },
         { title: "KVS Regional Office Mumbai", icon: <School className="w-5 h-5" />, url: "https://romumbai.kvs.gov.in/" },
         { title: "PM Shri Schools Official Portal", icon: <Globe className="w-5 h-5" />, url: "https://pmshrischools.education.gov.in/" },
-        { title: "KV IIT Powai Website", icon: <Library className="w-5 h-5" />, url: "https://iitpowai.kvs.ac.in/" }
+        { title: "KV IIT Powai Website", icon: <Library className="w-5 h-5" />, url: "https://iitpowai.kvs.ac.in/" },
+        { title: "KVS SAMAGAM", icon: <School className="w-5 h-5" />, url: "https://samagam.kvs.gov.in/" }
       ]
     },
     {
@@ -35,7 +37,9 @@ export default function MenuTab() {
       links: [
         { title: "National Digital Library of India (NDLI)", icon: <Database className="w-5 h-5" />, url: "https://ndl.iitkgp.ac.in/" },
         { title: "DIKSHA E-Learning Platform", icon: <Video className="w-5 h-5" />, url: "https://diksha.gov.in/" },
-        { title: "NCERT Official Textbooks", icon: <BookOpen className="w-5 h-5" />, url: "https://ncert.nic.in/textbook.php" }
+        { title: "NCERT Official Textbooks", icon: <BookOpen className="w-5 h-5" />, url: "https://ncert.nic.in/textbook.php" },
+        { title: "Sahityapedia - Hindi", icon: <BookOpen className="w-5 h-5" />, url: "https://sahityapedia.com/" },
+        { title: "Sahityapedia - English", icon: <BookOpen className="w-5 h-5" />, url: "https://sahityapedia.com/english/" }
       ]
     }
   ];

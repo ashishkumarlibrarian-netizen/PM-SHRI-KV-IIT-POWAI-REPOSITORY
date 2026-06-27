@@ -40,6 +40,10 @@ import {
   Bell,
   Menu,
   BookMarked,
+  Globe,
+  Share2,
+  Linkedin,
+  Layers,
 } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
 import MenuTab from "./components/MenuTab";
@@ -711,7 +715,8 @@ export default function App() {
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
               <span className="text-[9px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-sans tracking-wide whitespace-nowrap flex-shrink-0">
-                PM SHRI SCHOOL
+                <span className="md:hidden">PM SHRI</span>
+                <span className="hidden md:inline">PM SHRI SCHOOL</span>
               </span>
               <span className="hidden sm:inline text-[10px] md:text-[11px] font-mono text-cyan-400 whitespace-nowrap truncate min-w-0">
                 IIT POWAI SECTOR
@@ -2231,6 +2236,202 @@ export default function App() {
                       >
                         {followedHandles["Facebook"] ? "Joined" : "Join"}
                       </button>
+                    </div>
+
+                    {/* Handle 5: Padlet Book Review Submission */}
+                    <div className="p-4 bg-gradient-to-r from-amber-50/50 to-orange-50/20 border border-amber-200/60 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                          <BookOpenCheck className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-xs text-slate-800">
+                              Padlet Handle for Book Review submission
+                            </span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Submission Desk"></span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block">
+                            KV IIT Powai Virtual Library
+                          </span>
+                        </div>
+                      </div>
+                      <a
+                        href="https://padlet.com/kumarashish12345/kviit-powai-virtual-library-online-book-review-20wn0qe3d8db69bv"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-red-800 hover:bg-red-900 text-white flex items-center gap-1 shadow flex-shrink-0"
+                      >
+                        Submit Review <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    {/* Handle 6: Podcast of KV IIT LIBRARY */}
+                    <div className="p-4 bg-gradient-to-r from-emerald-50/50 to-teal-50/20 border border-emerald-200/60 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                          <Radio className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-xs text-slate-800">
+                              Podcast of KV IIT LIBRARY
+                            </span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Podcast Desk"></span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block">
+                            Spotify Creators Profile
+                          </span>
+                        </div>
+                      </div>
+                      <a
+                        href="https://creators.spotify.com/pod/profile/ashish-kumar496/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-emerald-700 hover:bg-emerald-800 text-white flex items-center gap-1 shadow flex-shrink-0"
+                      >
+                        Listen Now <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    {/* Handle 7: LinkTr.ee */}
+                    <div className="p-4 bg-gradient-to-r from-lime-50/50 to-green-50/20 border border-lime-200/60 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-lime-100 text-lime-800 flex items-center justify-center flex-shrink-0">
+                          <Share2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-xs text-slate-800">
+                              LinkTr.ee
+                            </span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Link Hub"></span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block">
+                            KV IIT Powai Universal Links
+                          </span>
+                        </div>
+                      </div>
+                      <a
+                        href="https://linktr.ee/librarykviitpowai"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-lime-700 hover:bg-lime-800 text-white flex items-center gap-1 shadow flex-shrink-0"
+                      >
+                        Explore Links <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    {/* Handle 8: Sound Library */}
+                    <div className="p-4 bg-gradient-to-r from-orange-50/50 to-amber-50/20 border border-orange-200/60 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0">
+                          <Volume2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-xs text-slate-800">
+                              Sound Library
+                            </span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Sound Hub"></span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block">
+                            SoundCloud Audio Collection
+                          </span>
+                        </div>
+                      </div>
+                      <a
+                        href="https://soundcloud.com/ashish-kumar-979097077?utm_campaign=social_sharing&utm_medium=text&utm_source=clipboard"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-1 shadow flex-shrink-0"
+                      >
+                        Listen Now <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    {/* Handle 9: Wakelet */}
+                    <div className="p-4 bg-gradient-to-r from-blue-50/50 to-indigo-50/20 border border-blue-200/60 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+                          <Layers className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-xs text-slate-800">
+                              Wakelet
+                            </span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Wakelet Profile"></span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block">
+                            Curated Resources
+                          </span>
+                        </div>
+                      </div>
+                      <a
+                        href="https://wakelet.com/@kviitpowaivirtuallibrary"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 shadow flex-shrink-0"
+                      >
+                        Explore <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    {/* Handle 10: Linkedin */}
+                    <div className="p-4 bg-gradient-to-r from-sky-50/50 to-blue-50/20 border border-sky-200/60 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center flex-shrink-0">
+                          <Linkedin className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-xs text-slate-800">
+                              Linkedin
+                            </span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Linkedin Profile"></span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block">
+                            Professional Network
+                          </span>
+                        </div>
+                      </div>
+                      <a
+                        href="https://www.linkedin.com/in/ashish-kumar-87678455/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-sky-700 hover:bg-sky-800 text-white flex items-center gap-1 shadow flex-shrink-0"
+                      >
+                        Connect <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    {/* Handle 11: WEB OPAC */}
+                    <div className="p-4 bg-gradient-to-r from-purple-50/50 to-fuchsia-50/20 border border-purple-200/60 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0">
+                          <Search className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-xs text-slate-800">
+                              WEB OPAC
+                            </span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Catalog Search"></span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block">
+                            Online Public Access Catalog
+                          </span>
+                        </div>
+                      </div>
+                      <a
+                        href="https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 shadow flex-shrink-0"
+                      >
+                        Search Catalog <ExternalLink className="w-3 h-3" />
+                      </a>
                     </div>
                   </div>
                 </div>
