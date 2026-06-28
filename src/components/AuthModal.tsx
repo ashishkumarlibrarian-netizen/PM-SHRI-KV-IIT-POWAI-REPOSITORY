@@ -201,10 +201,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
                 <input
                   type="password"
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-xs text-indigo-950 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  placeholder="Min 6 characters"
+                  placeholder="Enter Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  minLength={6}
                   required
                 />
               </div>

@@ -53,6 +53,7 @@ import WelcomeTab from "./components/WelcomeTab";
 import MenuTab from "./components/MenuTab";
 import MagazineTab from "./components/MagazineTab";
 import StaffTab from "./components/StaffTab";
+import EventsTab from "./components/EventsTab";
 import ReadersClubTab from "./components/ReadersClubTab";
 import {
   StoryChapter,
@@ -70,7 +71,7 @@ import { RECENT_BOOKS_DATA } from "./data/recentBooks";
 const INITIAL_SOCIAL_POSTS: SocialFeedPost[] = [];
 
 export default function App() {
-  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff", "career-guidance"] as const;
+  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff", "events", "career-guidance"] as const;
   type TabType = typeof validTabs[number];
 
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
@@ -292,7 +293,7 @@ export default function App() {
 
   // Load real social posts from the KV Powai Wall backend
   const fetchSocialPosts = () => {
-    fetch("/api/social/posts")
+    fetch(`/api/social/posts?_t=${Date.now()}`)
       .then((res) => {
         if (res.ok) return res.json();
         throw new Error("Failed to load posts");
@@ -816,6 +817,7 @@ export default function App() {
             },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-4 h-4" /> },
             { id: "staff", label: "Staff", icon: <Users className="w-4 h-4" /> },
+            { id: "events", label: "Library Events", icon: <Calendar className="w-4 h-4" /> },
             { id: "menu", label: "Menu", icon: <Menu className="w-4 h-4" /> }
           ].map((tab) => (
             <div key={tab.id} className="relative group">
@@ -981,6 +983,7 @@ export default function App() {
             },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-3.5 h-3.5" /> },
             { id: "staff", label: "Staff", icon: <Users className="w-3.5 h-3.5" /> },
+            { id: "events", label: "Events", icon: <Calendar className="w-3.5 h-3.5" /> },
             { id: "menu", label: "Menu", icon: <Menu className="w-3.5 h-3.5" /> }
           ].map((tab) => (
             <div key={tab.id} className="relative group flex-shrink-0">
@@ -2844,6 +2847,18 @@ export default function App() {
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
               <StaffTab />
+            </motion.div>
+          )}
+
+          {activeTab === "events" && (
+            <motion.div
+              key="events"
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <EventsTab currentUser={currentUser} />
             </motion.div>
           )}
 

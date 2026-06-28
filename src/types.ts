@@ -69,6 +69,7 @@ export interface User {
   fullName: string;
   className: string;
   createdAt: string;
+  role?: string;
 }
 
 export interface RecentBook {

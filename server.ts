@@ -13,7 +13,8 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 const USERS_FILE = path.join(process.cwd(), "data", "users.json");
 
@@ -25,10 +26,43 @@ interface User {
   className: string;
   passwordHash: string;
   createdAt: string;
+  role?: string;
 }
 
-// Local sessions store in-memory
-const sessions = new Map<string, { userId: string; expiresAt: number }>();
+class SessionStore {
+  file: string;
+  constructor(file: string) {
+    this.file = file;
+    const dir = path.dirname(this.file);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(file)) {
+      fs.writeFileSync(file, "{}");
+    }
+  }
+  get(key: string) {
+    try {
+      const data = JSON.parse(fs.readFileSync(this.file, "utf-8"));
+      return data[key];
+    } catch(e) { return undefined; }
+  }
+  set(key: string, value: any) {
+    try {
+      const data = JSON.parse(fs.readFileSync(this.file, "utf-8"));
+      data[key] = value;
+      fs.writeFileSync(this.file, JSON.stringify(data));
+    } catch(e) {}
+  }
+  delete(key: string) {
+    try {
+      const data = JSON.parse(fs.readFileSync(this.file, "utf-8"));
+      delete data[key];
+      fs.writeFileSync(this.file, JSON.stringify(data));
+    } catch(e) {}
+  }
+}
+
+// Local sessions store file-backed
+const sessions = new SessionStore(path.join(process.cwd(), "data", "sessions.json"));
 
 // Ensure database file exists
 function ensureUsersFile() {
@@ -36,10 +70,42 @@ function ensureUsersFile() {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
+  let users: User[] = [];
   if (!fs.existsSync(USERS_FILE)) {
     fs.writeFileSync(USERS_FILE, JSON.stringify([]));
+  } else {
+    try {
+      users = JSON.parse(fs.readFileSync(USERS_FILE, "utf-8") || "[]");
+    } catch(e) {}
+  }
+  
+  // Seed admin user
+  const adminEmail = "ashishkumar.librarian@gmail.com";
+  const adminIndex = users.findIndex(u => u.email === adminEmail);
+  const adminHash = hashPassword("1234");
+  
+  if (adminIndex === -1) {
+    users.push({
+      id: "admin-1",
+      email: adminEmail,
+      username: "admin",
+      fullName: "Ashish Kumar",
+      className: "Staff",
+      passwordHash: adminHash,
+      createdAt: new Date().toISOString(),
+      role: "admin"
+    });
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+  } else {
+    // Reset password and ensure role
+    users[adminIndex].passwordHash = adminHash;
+    users[adminIndex].role = "admin";
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
   }
 }
+
+// Call on startup
+ensureUsersFile();
 
 function readUsers(): User[] {
   ensureUsersFile();
@@ -108,9 +174,6 @@ app.post("/api/auth/register", (req, res) => {
 
     if (usernameClean.length < 3) {
       return res.status(400).json({ error: "Username must be at least 3 characters." });
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters." });
     }
 
     const users = readUsers();
@@ -431,6 +494,158 @@ function getOpenAI(): OpenAI {
 // ----------------------------------------------------------------------------
 // Real-time Library Wall Social Feed APIs
 // ----------------------------------------------------------------------------
+
+const EVENTS_FILE = path.join(process.cwd(), "data", "events.json");
+
+function ensureEventsFile() {
+  const dir = path.dirname(EVENTS_FILE);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  if (!fs.existsSync(EVENTS_FILE)) {
+    fs.writeFileSync(EVENTS_FILE, JSON.stringify([]));
+  }
+}
+
+function readEvents(): any[] {
+  ensureEventsFile();
+  try {
+    const data = fs.readFileSync(EVENTS_FILE, "utf-8");
+    return JSON.parse(data || "[]");
+  } catch (err) {
+    return [];
+  }
+}
+
+function writeEvents(events: any[]) {
+  ensureEventsFile();
+  fs.writeFileSync(EVENTS_FILE, JSON.stringify(events, null, 2), "utf-8");
+}
+
+app.get("/api/events", (req, res) => {
+  try {
+    const events = readEvents();
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load events" });
+  }
+});
+
+app.post("/api/events", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized access." });
+    }
+    const token = authHeader.split(" ")[1];
+    const session = sessions.get(token);
+    if (!session || session.expiresAt < Date.now()) {
+      return res.status(401).json({ error: "Session expired or invalid." });
+    }
+    const users = readUsers();
+    const user = users.find(u => u.id === session.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { title, description, imageUrl, videoUrl, mediaUrls, timestamp } = req.body;
+    if (!title || !description) {
+      return res.status(400).json({ error: "Title and description are required." });
+    }
+
+    const events = readEvents();
+    const newEvent = {
+      id: "event-" + Date.now() + "-" + Math.random().toString(36).substr(2, 4),
+      title: title.trim(),
+      description: description.trim(),
+      imageUrl: imageUrl?.trim() || null,
+      videoUrl: videoUrl?.trim() || null,
+      mediaUrls: Array.isArray(mediaUrls) ? mediaUrls : [],
+      timestamp: timestamp || new Date().toISOString()
+    };
+
+    events.unshift(newEvent);
+    writeEvents(events);
+    res.status(201).json(newEvent);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to create event" });
+  }
+});
+
+app.put("/api/events/:id", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized access." });
+    }
+    const token = authHeader.split(" ")[1];
+    const session = sessions.get(token);
+    if (!session || session.expiresAt < Date.now()) {
+      return res.status(401).json({ error: "Session expired or invalid." });
+    }
+    const users = readUsers();
+    const user = users.find(u => u.id === session.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { id } = req.params;
+    const { title, description, imageUrl, videoUrl, mediaUrls, timestamp } = req.body;
+    
+    const events = readEvents();
+    const eventIndex = events.findIndex(e => e.id === id);
+    if (eventIndex === -1) {
+      return res.status(404).json({ error: "Event not found." });
+    }
+
+    events[eventIndex] = {
+      ...events[eventIndex],
+      title: title ? title.trim() : events[eventIndex].title,
+      description: description ? description.trim() : events[eventIndex].description,
+      imageUrl: imageUrl !== undefined ? imageUrl : events[eventIndex].imageUrl,
+      videoUrl: videoUrl !== undefined ? videoUrl : events[eventIndex].videoUrl,
+      mediaUrls: Array.isArray(mediaUrls) ? mediaUrls : events[eventIndex].mediaUrls || [],
+      timestamp: timestamp || events[eventIndex].timestamp
+    };
+
+    writeEvents(events);
+    res.json(events[eventIndex]);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update event" });
+  }
+});
+
+app.delete("/api/events/:id", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized access." });
+    }
+    const token = authHeader.split(" ")[1];
+    const session = sessions.get(token);
+    if (!session || session.expiresAt < Date.now()) {
+      return res.status(401).json({ error: "Session expired or invalid." });
+    }
+    const users = readUsers();
+    const user = users.find(u => u.id === session.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { id } = req.params;
+    const events = readEvents();
+    const updatedEvents = events.filter(e => e.id !== id);
+    
+    if (events.length === updatedEvents.length) {
+      return res.status(404).json({ error: "Event not found." });
+    }
+
+    writeEvents(updatedEvents);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete event" });
+  }
+});
 
 app.post("/api/creative/image", async (req, res) => {
   try {

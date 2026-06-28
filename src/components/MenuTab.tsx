@@ -60,7 +60,10 @@ export default function MenuTab() {
         { title: "Motivational Story", icon: <FileText className="w-5 h-5" />, url: "https://academictips.org/blogs/" },
         { title: "Sahityapedia - Hindi", icon: <BookOpen className="w-5 h-5" />, url: "https://sahityapedia.com/" },
         { title: "Sahityapedia - English", icon: <BookOpen className="w-5 h-5" />, url: "https://sahityapedia.com/english/" },
-        { title: "UBI KV FEES", icon: <Globe className="w-5 h-5" />, url: "https://epay.unionbankofindia.bank.in/kvfee/" }
+        { title: "UBI KV FEES", icon: <Globe className="w-5 h-5" />, url: "https://epay.unionbankofindia.bank.in/kvfee/" },
+        { title: "Kavita Kosh", icon: <BookOpen className="w-5 h-5" />, url: "https://kavitakosh.org" },
+        { title: "Hindi Samay", icon: <BookOpen className="w-5 h-5" />, url: "https://www.hindisamay.com" },
+        { title: "Gadya Kosh", icon: <BookOpen className="w-5 h-5" />, url: "https://gadyakosh.org" }
       ]
     }
   ];
