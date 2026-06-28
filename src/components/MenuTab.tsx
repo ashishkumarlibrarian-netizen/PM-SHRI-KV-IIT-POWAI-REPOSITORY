@@ -20,7 +20,8 @@ export default function MenuTab() {
         { title: "NEP 2020 Complete Document", icon: <FileText className="w-5 h-5" />, url: "https://www.education.gov.in/sites/upload_files/mhrd/files/NEP_Final_English_0.pdf" },
         { title: "The National Curriculum Framework (NCF)", icon: <GraduationCap className="w-5 h-5" />, url: "https://ncf.ncert.gov.in/#/web/home" },
         { title: "CBSE websites", icon: <Globe className="w-5 h-5" />, url: "https://www.cbse.gov.in/" },
-        { title: "UDISE+", icon: <Globe className="w-5 h-5" />, url: "https://udiseplus.gov.in/#/en/home" }
+        { title: "UDISE+", icon: <Globe className="w-5 h-5" />, url: "https://udiseplus.gov.in/#/en/home" },
+        { title: "iGOT Karmayogi", icon: <Globe className="w-5 h-5" />, url: "https://portal.igotkarmayogi.gov.in/auth/realms/sunbird/protocol/openid-connect/auth?client_id=portal&state=f87f8d64-6a59-4e43-8136-d01393cb2a25&redirect_uri=https%3A%2F%2Fportal.igotkarmayogi.gov.in%2Fprotected%2Fv8%2Fresource%2F%3Fredirect_uri%3D%252F%26auth_callback%3D1&scope=openid&response_type=code" }
       ]
     },
     {

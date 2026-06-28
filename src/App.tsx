@@ -45,6 +45,7 @@ import {
   Linkedin,
   Layers,
   X,
+  FileText
 } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
 import MenuTab from "./components/MenuTab";
@@ -788,13 +789,20 @@ export default function App() {
             ...(currentUser ? [{ id: "creative", label: "Creative Hub", icon: <PenTool className="w-4 h-4" /> }] : []),
             { id: "social", label: "Social Hub", icon: <MessageSquare className="w-4 h-4" /> },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-4 h-4" /> },
+            { id: "board-solutions", label: "Board Solutions", icon: <FileText className="w-4 h-4" />, url: "https://www.cbse.gov.in/cbsenew/model-answer.html" },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-4 h-4" /> },
             { id: "staff", label: "Staff", icon: <Users className="w-4 h-4" /> },
             { id: "menu", label: "Menu", icon: <Menu className="w-4 h-4" /> }
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                if ('url' in tab && tab.url) {
+                  window.open(tab.url, "_blank");
+                } else {
+                  setActiveTab(tab.id as any);
+                }
+              }}
               className={`relative px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 group ${
                 activeTab === tab.id
                   ? "text-slate-950"
@@ -885,13 +893,20 @@ export default function App() {
             ...(currentUser ? [{ id: "creative", label: "✍️ Writing Lab", icon: null }] : []),
             { id: "social", label: "💬 Social Wall", icon: null },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-3.5 h-3.5" /> },
+            { id: "board-solutions", label: "Board Solutions", icon: <FileText className="w-3.5 h-3.5" />, url: "https://www.cbse.gov.in/cbsenew/model-answer.html" },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-3.5 h-3.5" /> },
             { id: "staff", label: "Staff", icon: <Users className="w-3.5 h-3.5" /> },
             { id: "menu", label: "Menu", icon: <Menu className="w-3.5 h-3.5" /> }
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                if ('url' in tab && tab.url) {
+                  window.open(tab.url, "_blank");
+                } else {
+                  setActiveTab(tab.id as any);
+                }
+              }}
               className={`relative px-4 py-2 rounded-full font-medium flex items-center gap-1.5 transition-colors ${
                 activeTab === tab.id ? "text-slate-900" : "bg-slate-700/50 text-slate-200 hover:bg-slate-700"
               }`}
