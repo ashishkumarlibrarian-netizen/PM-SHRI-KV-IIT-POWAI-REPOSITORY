@@ -797,7 +797,7 @@ export default function App() {
           {[
             { id: "dashboard", label: "Bulletin & Desk", icon: <LayoutGrid className="w-4 h-4" /> },
             ...(currentUser ? [{ id: "story", label: "AI Interactive Storyteller", icon: <Sparkles className="w-4 h-4" /> }] : []),
-            { id: "books", label: "Recent Books", icon: <BookOpen className="w-4 h-4" /> },
+            { id: "books", label: "Recent Books", icon: <BookOpen className="w-4 h-4" />, url: "https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3" },
             ...(currentUser ? [{ id: "creative", label: "Creative Hub", icon: <PenTool className="w-4 h-4" /> }] : []),
             { id: "social", label: "Social Hub", icon: <MessageSquare className="w-4 h-4" /> },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-4 h-4" /> },
@@ -962,7 +962,7 @@ export default function App() {
           {[
             { id: "dashboard", label: "Bulletin", icon: null },
             ...(currentUser ? [{ id: "story", label: "✨ AI Storytelling", icon: null }] : []),
-            { id: "books", label: "📖 Recent Books", icon: null },
+            { id: "books", label: "📖 Recent Books", icon: null, url: "https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3" },
             ...(currentUser ? [{ id: "creative", label: "✍️ Writing Lab", icon: null }] : []),
             { id: "social", label: "💬 Social Wall", icon: null },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-3.5 h-3.5" /> },

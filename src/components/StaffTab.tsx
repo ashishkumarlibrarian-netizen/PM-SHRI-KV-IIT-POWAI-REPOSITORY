@@ -38,7 +38,7 @@ export default function StaffTab() {
             <Users className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
           </div>
           <h2 className="text-3xl font-bold text-slate-800 dark:text-white">
-            Library Champions
+            Library Team
           </h2>
           <p className="text-slate-600 dark:text-slate-300 text-lg">
             Honoring the dedicated staff members who have made significant contributions to our library's growth, resources, and reading culture.
