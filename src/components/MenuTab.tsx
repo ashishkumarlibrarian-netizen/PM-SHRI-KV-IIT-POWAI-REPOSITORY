@@ -41,8 +41,19 @@ export default function MenuTab() {
         { title: "National Digital Library of India (NDLI)", icon: <Database className="w-5 h-5" />, url: "https://ndl.iitkgp.ac.in/" },
         { title: "DIKSHA E-Learning Platform", icon: <Video className="w-5 h-5" />, url: "https://diksha.gov.in/" },
         { title: "NCERT Official Textbooks", icon: <BookOpen className="w-5 h-5" />, url: "https://ncert.nic.in/textbook.php" },
+        { title: "National Repository of Open Educational Resources (NROER)", icon: <Database className="w-5 h-5" />, url: "https://www.gnowledge.org/projects/nroer.html" },
+        { title: "E PATHSHALA", icon: <BookOpen className="w-5 h-5" />, url: "https://www.epathwg.ncert.org.in/index.php?ln=en" },
+        { title: "SWAYAM", icon: <GraduationCap className="w-5 h-5" />, url: "https://swayam.gov.in/" }
+      ]
+    },
+    {
+      title: "Student Corner",
+      links: [
+        { title: "CBSE Previous Question Papers", icon: <FileText className="w-5 h-5" />, url: "https://www.cbse.gov.in/cbsenew/question-paper.html" },
+        { title: "Motivational Story", icon: <FileText className="w-5 h-5" />, url: "https://academictips.org/blogs/" },
         { title: "Sahityapedia - Hindi", icon: <BookOpen className="w-5 h-5" />, url: "https://sahityapedia.com/" },
-        { title: "Sahityapedia - English", icon: <BookOpen className="w-5 h-5" />, url: "https://sahityapedia.com/english/" }
+        { title: "Sahityapedia - English", icon: <BookOpen className="w-5 h-5" />, url: "https://sahityapedia.com/english/" },
+        { title: "UBI KV FEES", icon: <Globe className="w-5 h-5" />, url: "https://epay.unionbankofindia.bank.in/kvfee/" }
       ]
     }
   ];

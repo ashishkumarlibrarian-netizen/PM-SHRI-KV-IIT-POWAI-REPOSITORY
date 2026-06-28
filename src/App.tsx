@@ -49,6 +49,8 @@ import {
 import WelcomeTab from "./components/WelcomeTab";
 import MenuTab from "./components/MenuTab";
 import MagazineTab from "./components/MagazineTab";
+import StaffTab from "./components/StaffTab";
+import ReadersClubTab from "./components/ReadersClubTab";
 import {
   StoryChapter,
   BookRecommendation,
@@ -65,7 +67,7 @@ import { RECENT_BOOKS_DATA } from "./data/recentBooks";
 const INITIAL_SOCIAL_POSTS: SocialFeedPost[] = [];
 
 export default function App() {
-  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine"] as const;
+  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff"] as const;
   type TabType = typeof validTabs[number];
 
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
@@ -786,6 +788,8 @@ export default function App() {
             ...(currentUser ? [{ id: "creative", label: "Creative Hub", icon: <PenTool className="w-4 h-4" /> }] : []),
             { id: "social", label: "Social Hub", icon: <MessageSquare className="w-4 h-4" /> },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-4 h-4" /> },
+            { id: "readers-club", label: "Reader's Club", icon: <Users className="w-4 h-4" /> },
+            { id: "staff", label: "Staff", icon: <Users className="w-4 h-4" /> },
             { id: "menu", label: "Menu", icon: <Menu className="w-4 h-4" /> }
           ].map((tab) => (
             <button
@@ -881,6 +885,8 @@ export default function App() {
             ...(currentUser ? [{ id: "creative", label: "✍️ Writing Lab", icon: null }] : []),
             { id: "social", label: "💬 Social Wall", icon: null },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-3.5 h-3.5" /> },
+            { id: "readers-club", label: "Reader's Club", icon: <Users className="w-3.5 h-3.5" /> },
+            { id: "staff", label: "Staff", icon: <Users className="w-3.5 h-3.5" /> },
             { id: "menu", label: "Menu", icon: <Menu className="w-3.5 h-3.5" /> }
           ].map((tab) => (
             <button
@@ -2677,6 +2683,30 @@ export default function App() {
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
               <MagazineTab />
+            </motion.div>
+          )}
+
+          {activeTab === "staff" && (
+            <motion.div
+              key="staff"
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <StaffTab />
+            </motion.div>
+          )}
+
+          {activeTab === "readers-club" && (
+            <motion.div
+              key="readers-club"
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <ReadersClubTab />
             </motion.div>
           )}
         </AnimatePresence>
