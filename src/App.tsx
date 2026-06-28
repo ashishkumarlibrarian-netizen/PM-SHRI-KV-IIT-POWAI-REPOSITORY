@@ -85,6 +85,14 @@ export default function App() {
 
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
+  useEffect(() => {
+    const handleDocumentClick = () => setOpenDropdown(null);
+    if (openDropdown) {
+      document.addEventListener("click", handleDocumentClick);
+    }
+    return () => document.removeEventListener("click", handleDocumentClick);
+  }, [openDropdown]);
+
   const setActiveTab = (tab: TabType) => {
     setActiveTabState(tab);
     try {
@@ -799,9 +807,11 @@ export default function App() {
               label: "Career Guidance", 
               icon: <Briefcase className="w-4 h-4" />,
               dropdown: [
+                { label: "Mindler", url: "https://www.mindler.com/" },
                 { label: "Careers360", url: "https://www.careers360.com/" },
                 { label: "EduMilestones", url: "https://www.edumilestones.com/" },
-                { label: "NCS Beta", url: "https://betacloud.ncs.gov.in/" }
+                { label: "NCS Beta", url: "https://betacloud.ncs.gov.in/" },
+                { label: "ProTeen", url: "https://www.proteen.com/" }
               ]
             },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-4 h-4" /> },
@@ -810,7 +820,8 @@ export default function App() {
           ].map((tab) => (
             <div key={tab.id} className="relative group">
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   if ('url' in tab && tab.url) {
                     window.open(tab.url, "_blank");
                   } else if ('dropdown' in tab) {
@@ -843,13 +854,13 @@ export default function App() {
                 <AnimatePresence>
                   {openDropdown === tab.id && (
                     <>
-                      <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)} />
                       <motion.div 
                         initial={{ opacity: 0, y: -5, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -5, scale: 0.95 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
                         className="absolute left-0 top-full pt-2 z-50 origin-top-left"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex flex-col bg-[#0f1115] rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.7)] border border-[#1f2229] p-3 min-w-[240px] overflow-hidden relative">
                           <div className="px-1 pb-3 text-[9px] font-bold text-amber-600/90 tracking-widest uppercase">
@@ -866,7 +877,7 @@ export default function App() {
                                 onClick={() => setOpenDropdown(null)}
                               >
                                 <div className="w-9 h-9 rounded-full bg-[#181a20] group-hover/item:bg-[#1f2229] flex items-center justify-center flex-shrink-0 border border-[#262a33] text-amber-500 transition-colors">
-                                  {idx === 0 ? <LayoutGrid className="w-4 h-4 opacity-90" /> : idx === 1 ? <Compass className="w-4 h-4 opacity-90" /> : <Briefcase className="w-4 h-4 opacity-90" />}
+                                  {idx === 0 ? <LayoutGrid className="w-4 h-4 opacity-90" /> : idx === 1 ? <Compass className="w-4 h-4 opacity-90" /> : idx === 2 ? <Briefcase className="w-4 h-4 opacity-90" /> : idx === 3 ? <MapPin className="w-4 h-4 opacity-90" /> : <Award className="w-4 h-4 opacity-90" />}
                                 </div>
                                 <div className="flex flex-col">
                                   <span className="text-[13px] font-bold text-slate-100 group-hover/item:text-white transition-colors leading-none">{dropItem.label}</span>
@@ -961,9 +972,11 @@ export default function App() {
               label: "Career Guidance", 
               icon: <Briefcase className="w-3.5 h-3.5" />,
               dropdown: [
+                { label: "Mindler", url: "https://www.mindler.com/" },
                 { label: "Careers360", url: "https://www.careers360.com/" },
                 { label: "EduMilestones", url: "https://www.edumilestones.com/" },
-                { label: "NCS Beta", url: "https://betacloud.ncs.gov.in/" }
+                { label: "NCS Beta", url: "https://betacloud.ncs.gov.in/" },
+                { label: "ProTeen", url: "https://www.proteen.com/" }
               ]
             },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-3.5 h-3.5" /> },
@@ -972,7 +985,8 @@ export default function App() {
           ].map((tab) => (
             <div key={tab.id} className="relative group flex-shrink-0">
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   if ('url' in tab && tab.url) {
                     window.open(tab.url, "_blank");
                   } else if ('dropdown' in tab) {
@@ -1003,13 +1017,13 @@ export default function App() {
                 <AnimatePresence>
                   {openDropdown === tab.id && (
                     <>
-                      <div className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm" onClick={() => setOpenDropdown(null)} />
                       <motion.div 
                         initial={{ opacity: 0, y: -5, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -5, scale: 0.95 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
                         className="fixed left-[max(1rem,calc(50%-120px))] right-[max(1rem,calc(50%-120px))] sm:left-auto sm:right-auto sm:w-[240px] top-[100px] z-50 origin-top"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex flex-col bg-[#0f1115] rounded-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] border border-[#1f2229] p-3 overflow-hidden">
                           <div className="px-1 pb-3 text-[9px] font-bold text-amber-600/90 tracking-widest uppercase">
@@ -1026,7 +1040,7 @@ export default function App() {
                                 onClick={() => setOpenDropdown(null)}
                               >
                                 <div className="w-9 h-9 rounded-full bg-[#181a20] flex items-center justify-center flex-shrink-0 border border-[#262a33] text-amber-500 transition-colors">
-                                  {idx === 0 ? <LayoutGrid className="w-4 h-4 opacity-90" /> : idx === 1 ? <Compass className="w-4 h-4 opacity-90" /> : <Briefcase className="w-4 h-4 opacity-90" />}
+                                  {idx === 0 ? <LayoutGrid className="w-4 h-4 opacity-90" /> : idx === 1 ? <Compass className="w-4 h-4 opacity-90" /> : idx === 2 ? <Briefcase className="w-4 h-4 opacity-90" /> : idx === 3 ? <MapPin className="w-4 h-4 opacity-90" /> : <Award className="w-4 h-4 opacity-90" />}
                                 </div>
                                 <div className="flex flex-col">
                                   <span className="text-[13px] font-bold text-slate-100 group-hover/item:text-white transition-colors leading-none">{dropItem.label}</span>
