@@ -45,7 +45,9 @@ import {
   Linkedin,
   Layers,
   X,
-  FileText
+  FileText,
+  Briefcase,
+  ChevronDown
 } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
 import MenuTab from "./components/MenuTab";
@@ -68,7 +70,7 @@ import { RECENT_BOOKS_DATA } from "./data/recentBooks";
 const INITIAL_SOCIAL_POSTS: SocialFeedPost[] = [];
 
 export default function App() {
-  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff"] as const;
+  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff", "career-guidance"] as const;
   type TabType = typeof validTabs[number];
 
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
@@ -80,6 +82,8 @@ export default function App() {
       return "dashboard";
     }
   });
+
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const setActiveTab = (tab: TabType) => {
     setActiveTabState(tab);
@@ -790,36 +794,94 @@ export default function App() {
             { id: "social", label: "Social Hub", icon: <MessageSquare className="w-4 h-4" /> },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-4 h-4" /> },
             { id: "board-solutions", label: "Board Solutions", icon: <FileText className="w-4 h-4" />, url: "https://www.cbse.gov.in/cbsenew/model-answer.html" },
+            { 
+              id: "career-guidance", 
+              label: "Career Guidance", 
+              icon: <Briefcase className="w-4 h-4" />,
+              dropdown: [
+                { label: "Careers360", url: "https://www.careers360.com/" },
+                { label: "EduMilestones", url: "https://www.edumilestones.com/" },
+                { label: "NCS Beta", url: "https://betacloud.ncs.gov.in/" }
+              ]
+            },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-4 h-4" /> },
             { id: "staff", label: "Staff", icon: <Users className="w-4 h-4" /> },
             { id: "menu", label: "Menu", icon: <Menu className="w-4 h-4" /> }
           ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                if ('url' in tab && tab.url) {
-                  window.open(tab.url, "_blank");
-                } else {
-                  setActiveTab(tab.id as any);
-                }
-              }}
-              className={`relative px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 group ${
-                activeTab === tab.id
-                  ? "text-slate-950"
-                  : "text-slate-300 hover:text-white"
-              }`}
-            >
-              {activeTab === tab.id && (
-                <motion.div 
-                  layoutId="nav-desktop-pill" 
-                  className="absolute inset-0 bg-amber-500 rounded-lg shadow-sm"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
+            <div key={tab.id} className="relative group">
+              <button
+                onClick={() => {
+                  if ('url' in tab && tab.url) {
+                    window.open(tab.url, "_blank");
+                  } else if ('dropdown' in tab) {
+                    setOpenDropdown(openDropdown === tab.id ? null : tab.id);
+                  } else {
+                    setActiveTab(tab.id as any);
+                    setOpenDropdown(null);
+                  }
+                }}
+                className={`relative px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 group/btn ${
+                  activeTab === tab.id
+                    ? "text-slate-950"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                {activeTab === tab.id && (
+                  <motion.div 
+                    layoutId="nav-desktop-pill" 
+                    className="absolute inset-0 bg-amber-500 rounded-lg shadow-sm"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  {tab.icon} {tab.label}
+                  {'dropdown' in tab && <ChevronDown className={`w-3 h-3 ml-0.5 opacity-70 transition-transform ${openDropdown === tab.id ? "rotate-180" : ""}`} />}
+                </span>
+              </button>
+              
+              {'dropdown' in tab && (
+                <AnimatePresence>
+                  {openDropdown === tab.id && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute left-0 top-full pt-2 z-50 origin-top-left"
+                      >
+                        <div className="flex flex-col bg-[#0f1115] rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.7)] border border-[#1f2229] p-3 min-w-[240px] overflow-hidden relative">
+                          <div className="px-1 pb-3 text-[9px] font-bold text-amber-600/90 tracking-widest uppercase">
+                            CAREER LINKS
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            {(tab as any).dropdown.map((dropItem: any, idx: number) => (
+                              <a 
+                                key={idx}
+                                href={dropItem.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 rounded-lg font-semibold text-slate-300 hover:bg-[#181a20] hover:text-white transition-colors flex items-center gap-3.5 group/item"
+                                onClick={() => setOpenDropdown(null)}
+                              >
+                                <div className="w-9 h-9 rounded-full bg-[#181a20] group-hover/item:bg-[#1f2229] flex items-center justify-center flex-shrink-0 border border-[#262a33] text-amber-500 transition-colors">
+                                  {idx === 0 ? <LayoutGrid className="w-4 h-4 opacity-90" /> : idx === 1 ? <Compass className="w-4 h-4 opacity-90" /> : <Briefcase className="w-4 h-4 opacity-90" />}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[13px] font-bold text-slate-100 group-hover/item:text-white transition-colors leading-none">{dropItem.label}</span>
+                                  <span className="text-[10px] text-slate-500 font-medium mt-1 leading-none">External Portal</span>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
               )}
-              <span className="relative z-10 flex items-center gap-1.5">
-                {tab.icon} {tab.label}
-              </span>
-            </button>
+            </div>
           ))}
         </nav>
 
@@ -894,34 +956,92 @@ export default function App() {
             { id: "social", label: "💬 Social Wall", icon: null },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-3.5 h-3.5" /> },
             { id: "board-solutions", label: "Board Solutions", icon: <FileText className="w-3.5 h-3.5" />, url: "https://www.cbse.gov.in/cbsenew/model-answer.html" },
+            { 
+              id: "career-guidance", 
+              label: "Career Guidance", 
+              icon: <Briefcase className="w-3.5 h-3.5" />,
+              dropdown: [
+                { label: "Careers360", url: "https://www.careers360.com/" },
+                { label: "EduMilestones", url: "https://www.edumilestones.com/" },
+                { label: "NCS Beta", url: "https://betacloud.ncs.gov.in/" }
+              ]
+            },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-3.5 h-3.5" /> },
             { id: "staff", label: "Staff", icon: <Users className="w-3.5 h-3.5" /> },
             { id: "menu", label: "Menu", icon: <Menu className="w-3.5 h-3.5" /> }
           ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                if ('url' in tab && tab.url) {
-                  window.open(tab.url, "_blank");
-                } else {
-                  setActiveTab(tab.id as any);
-                }
-              }}
-              className={`relative px-4 py-2 rounded-full font-medium flex items-center gap-1.5 transition-colors ${
-                activeTab === tab.id ? "text-slate-900" : "bg-slate-700/50 text-slate-200 hover:bg-slate-700"
-              }`}
-            >
-              {activeTab === tab.id && (
-                <motion.div 
-                  layoutId="nav-mobile-pill" 
-                  className="absolute inset-0 bg-amber-500 rounded-full"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
+            <div key={tab.id} className="relative group flex-shrink-0">
+              <button
+                onClick={() => {
+                  if ('url' in tab && tab.url) {
+                    window.open(tab.url, "_blank");
+                  } else if ('dropdown' in tab) {
+                    setOpenDropdown(openDropdown === tab.id ? null : tab.id);
+                  } else {
+                    setActiveTab(tab.id as any);
+                    setOpenDropdown(null);
+                  }
+                }}
+                className={`relative px-4 py-2 rounded-full font-medium flex items-center gap-1.5 transition-colors ${
+                  activeTab === tab.id ? "text-slate-900" : "bg-slate-700/50 text-slate-200 hover:bg-slate-700"
+                }`}
+              >
+                {activeTab === tab.id && (
+                  <motion.div 
+                    layoutId="nav-mobile-pill" 
+                    className="absolute inset-0 bg-amber-500 rounded-full"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1">
+                  {tab.icon} {tab.label}
+                  {'dropdown' in tab && <ChevronDown className={`w-3 h-3 ml-0.5 opacity-70 transition-transform ${openDropdown === tab.id ? "rotate-180" : ""}`} />}
+                </span>
+              </button>
+              
+              {'dropdown' in tab && (
+                <AnimatePresence>
+                  {openDropdown === tab.id && (
+                    <>
+                      <div className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm" onClick={() => setOpenDropdown(null)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="fixed left-[max(1rem,calc(50%-120px))] right-[max(1rem,calc(50%-120px))] sm:left-auto sm:right-auto sm:w-[240px] top-[100px] z-50 origin-top"
+                      >
+                        <div className="flex flex-col bg-[#0f1115] rounded-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] border border-[#1f2229] p-3 overflow-hidden">
+                          <div className="px-1 pb-3 text-[9px] font-bold text-amber-600/90 tracking-widest uppercase">
+                            CAREER LINKS
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            {(tab as any).dropdown.map((dropItem: any, idx: number) => (
+                              <a 
+                                key={idx}
+                                href={dropItem.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 rounded-lg font-semibold text-slate-300 hover:bg-[#181a20] active:bg-[#181a20] hover:text-white transition-colors flex items-center gap-3.5 group/item"
+                                onClick={() => setOpenDropdown(null)}
+                              >
+                                <div className="w-9 h-9 rounded-full bg-[#181a20] flex items-center justify-center flex-shrink-0 border border-[#262a33] text-amber-500 transition-colors">
+                                  {idx === 0 ? <LayoutGrid className="w-4 h-4 opacity-90" /> : idx === 1 ? <Compass className="w-4 h-4 opacity-90" /> : <Briefcase className="w-4 h-4 opacity-90" />}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[13px] font-bold text-slate-100 group-hover/item:text-white transition-colors leading-none">{dropItem.label}</span>
+                                  <span className="text-[10px] text-slate-500 font-medium mt-1 leading-none">External Portal</span>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
               )}
-              <span className="relative z-10 flex items-center gap-1">
-                {tab.icon} {tab.label}
-              </span>
-            </button>
+            </div>
           ))}
         </div>
       </div>
