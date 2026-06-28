@@ -44,7 +44,13 @@ export default function MenuTab() {
         { title: "NCERT Official Textbooks", icon: <BookOpen className="w-5 h-5" />, url: "https://ncert.nic.in/textbook.php" },
         { title: "National Repository of Open Educational Resources (NROER)", icon: <Database className="w-5 h-5" />, url: "https://www.gnowledge.org/projects/nroer.html" },
         { title: "E PATHSHALA", icon: <BookOpen className="w-5 h-5" />, url: "https://www.epathwg.ncert.org.in/index.php?ln=en" },
-        { title: "SWAYAM", icon: <GraduationCap className="w-5 h-5" />, url: "https://swayam.gov.in/" }
+        { title: "SWAYAM", icon: <GraduationCap className="w-5 h-5" />, url: "https://swayam.gov.in/" },
+        { title: "PM eVIDYA", icon: <Video className="w-5 h-5" />, url: "https://pmevidya.education.gov.in/" },
+        { title: "NIPUN Bharat", icon: <BookOpen className="w-5 h-5" />, url: "https://nipunbharat.education.gov.in/" },
+        { title: "Google for Education", icon: <Globe className="w-5 h-5" />, url: "https://edu.google.com/" },
+        { title: "Shodhganga", icon: <Database className="w-5 h-5" />, url: "https://shodhganga.inflibnet.ac.in/" },
+        { title: "Khan Academy", icon: <BookOpen className="w-5 h-5" />, url: "https://www.khanacademy.org/" },
+        { title: "UNESCO Digital Library", icon: <Library className="w-5 h-5" />, url: "https://unesdoc.unesco.org/" }
       ]
     },
     {
