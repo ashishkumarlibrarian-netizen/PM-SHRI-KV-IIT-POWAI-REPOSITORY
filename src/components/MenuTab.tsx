@@ -63,7 +63,11 @@ export default function MenuTab() {
         { title: "UBI KV FEES", icon: <Globe className="w-5 h-5" />, url: "https://epay.unionbankofindia.bank.in/kvfee/" },
         { title: "Kavita Kosh", icon: <BookOpen className="w-5 h-5" />, url: "https://kavitakosh.org" },
         { title: "Hindi Samay", icon: <BookOpen className="w-5 h-5" />, url: "https://www.hindisamay.com" },
-        { title: "Gadya Kosh", icon: <BookOpen className="w-5 h-5" />, url: "https://gadyakosh.org" }
+        { title: "Gadya Kosh", icon: <BookOpen className="w-5 h-5" />, url: "https://gadyakosh.org" },
+        { title: "KV TEACHERS GUILD", icon: <Video className="w-5 h-5" />, url: "https://www.youtube.com/@kvteachersguild" },
+        { title: "SWAYAM PRABHA", icon: <Globe className="w-5 h-5" />, url: "https://www.swayamprabha.gov.in/" },
+        { title: "KVS LIBRARY (KNOWLEDGE SPHERE)", icon: <Library className="w-5 h-5" />, url: "https://kvslibrary.com/" },
+        { title: "NCERT TEXTBOOKS", icon: <BookOpen className="w-5 h-5" />, url: "https://ncert.nic.in/textbook.php" }
       ]
     }
   ];
