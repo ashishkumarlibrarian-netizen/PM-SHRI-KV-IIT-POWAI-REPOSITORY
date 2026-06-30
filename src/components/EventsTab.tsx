@@ -133,6 +133,9 @@ export default function EventsTab({ currentUser }: EventsTabProps) {
         console.error("Delete failed:", txt);
         if (res.status === 401) {
           alert("Your session has expired. Please log out and log back in.");
+          localStorage.removeItem("kv_library_token");
+          localStorage.removeItem("kv_library_user");
+          window.location.reload();
         } else {
           alert("Failed to delete event: " + txt);
         }
@@ -184,6 +187,9 @@ export default function EventsTab({ currentUser }: EventsTabProps) {
         console.error("Submit failed:", txt);
         if (res.status === 401) {
           alert("Your session has expired. Please log out and log back in.");
+          localStorage.removeItem("kv_library_token");
+          localStorage.removeItem("kv_library_user");
+          window.location.reload();
         } else {
           alert("Failed to save event: " + txt);
         }

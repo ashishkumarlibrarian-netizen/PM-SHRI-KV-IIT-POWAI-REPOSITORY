@@ -166,27 +166,41 @@ export default function App() {
   };
 
   useEffect(() => {
-    try {
-      const savedToken = localStorage.getItem("kv_library_token");
-      const savedUserStr = localStorage.getItem("kv_library_user");
-      if (savedToken && savedUserStr) {
-        try {
-          const savedUser = JSON.parse(savedUserStr);
-          setCurrentUser(savedUser);
-          setStudentName(savedUser.fullName);
-          setStudentClass(savedUser.className);
-        } catch (e) {
-          localStorage.removeItem("kv_library_token");
-          localStorage.removeItem("kv_library_user");
+    const initAuth = async () => {
+      try {
+        const savedToken = localStorage.getItem("kv_library_token");
+        const savedUserStr = localStorage.getItem("kv_library_user");
+        if (savedToken && savedUserStr) {
+          try {
+            const savedUser = JSON.parse(savedUserStr);
+            setCurrentUser(savedUser);
+            setStudentName(savedUser.fullName);
+            setStudentClass(savedUser.className);
+            
+            // Validate session
+            const res = await fetch("/api/auth/me", {
+              headers: { "Authorization": `Bearer ${savedToken}` }
+            });
+            if (!res.ok) {
+              throw new Error("Invalid session");
+            }
+          } catch (e) {
+            setCurrentUser(null);
+            setStudentName("Guest Scholar");
+            setStudentClass("Class V-A");
+            localStorage.removeItem("kv_library_token");
+            localStorage.removeItem("kv_library_user");
+          }
+        } else {
+          setStudentName("Guest Scholar");
+          setStudentClass("Class V-A");
         }
-      } else {
+      } catch (e) {
         setStudentName("Guest Scholar");
         setStudentClass("Class V-A");
       }
-    } catch (e) {
-      setStudentName("Guest Scholar");
-      setStudentClass("Class V-A");
-    }
+    };
+    initAuth();
   }, []);
 
   // Choose Your Own Adventure (AI Storytelling States)
