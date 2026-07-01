@@ -589,6 +589,76 @@ function writeNotices(notices: any[]) {
   fs.writeFileSync(NOTICES_FILE, JSON.stringify(notices, null, 2), "utf-8");
 }
 
+const SETTINGS_FILE = path.join(process.cwd(), "data", "settings.json");
+
+function ensureSettingsFile() {
+  const dir = path.dirname(SETTINGS_FILE);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  if (!fs.existsSync(SETTINGS_FILE)) {
+    const initialSettings = {
+      heroImages: []
+    };
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(initialSettings, null, 2));
+  }
+}
+
+function readSettings(): any {
+  ensureSettingsFile();
+  try {
+    const data = fs.readFileSync(SETTINGS_FILE, "utf-8");
+    return JSON.parse(data || "{}");
+  } catch (err) {
+    return { heroImages: [] };
+  }
+}
+
+function writeSettings(settings: any) {
+  ensureSettingsFile();
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf-8");
+}
+
+app.get("/api/settings/hero-images", (req, res) => {
+  try {
+    const settings = readSettings();
+    res.json(settings.heroImages || []);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load hero images" });
+  }
+});
+
+app.post("/api/settings/hero-images", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized access." });
+    }
+    const token = authHeader.split(" ")[1];
+    const session = sessions.get(token);
+    if (!session || session.expiresAt < Date.now()) {
+      return res.status(401).json({ error: "Session expired or invalid." });
+    }
+    const users = readUsers();
+    const user = users.find(u => u.id === session.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { images } = req.body;
+    if (!Array.isArray(images)) {
+      return res.status(400).json({ error: "Images must be an array." });
+    }
+
+    const settings = readSettings();
+    settings.heroImages = images;
+    writeSettings(settings);
+    res.json(settings.heroImages);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update hero images" });
+  }
+});
+
 app.get("/api/notices", (req, res) => {
   try {
     const notices = readNotices();

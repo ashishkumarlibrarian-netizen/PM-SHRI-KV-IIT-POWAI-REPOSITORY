@@ -26,8 +26,29 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
   const [priority, setPriority] = useState("Normal");
   const [imageUrl, setImageUrl] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [heroImages, setHeroImages] = useState<string[]>([]);
+  const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
+  const [isHeroFormOpen, setIsHeroFormOpen] = useState(false);
+  const [editingHeroImages, setEditingHeroImages] = useState<string[]>([]);
 
   const isAdmin = currentUser?.role === "admin";
+
+  const checkIsOpen = () => {
+    const now = new Date();
+    const day = now.getDay();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+
+    if (day >= 1 && day <= 6) {
+      const currentTime = hours + minutes / 60;
+      if (currentTime >= 7 && currentTime < 14) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const [isOpenToday, setIsOpenToday] = useState(checkIsOpen());
 
   const fetchNotices = async () => {
     try {
@@ -44,9 +65,38 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
     }
   };
 
+  const fetchHeroImages = async () => {
+    try {
+      const res = await fetch("/api/settings/hero-images?_t=" + Date.now());
+      if (res.ok) {
+        const data = await res.json();
+        setHeroImages(data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     fetchNotices();
+    fetchHeroImages();
+    
+    const timeInterval = setInterval(() => {
+      setIsOpenToday(checkIsOpen());
+    }, 60000); // Check every minute
+    
+    return () => clearInterval(timeInterval);
   }, []);
+  
+  useEffect(() => {
+    if (heroImages.length <= 1) return;
+    
+    const sliderInterval = setInterval(() => {
+      setCurrentHeroIndex((prev) => (prev + 1) % heroImages.length);
+    }, 10000); // 10 seconds
+    
+    return () => clearInterval(sliderInterval);
+  }, [heroImages]);
 
   const openForm = (notice?: NoticeItem) => {
     if (notice) {
@@ -188,8 +238,8 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
   };
 
   const stats: LibraryStat[] = [
-    { label: "Total Books", value: "18,450+", iconName: "books", description: "Vast collection from young reader classics to encyclopedias" },
-    { label: "Active Readers", value: "2,100+", iconName: "users", description: "Students, teachers, and staff engaging with our digital resources" },
+    { label: "Total Books", value: "13,500+", iconName: "books", description: "Vast collection from young reader classics to encyclopedias" },
+    { label: "Active Readers", value: "1,265+", iconName: "users", description: "Students, teachers, and staff engaging with our digital resources" },
     { label: "Digital Realms", value: "15+", iconName: "compass", description: "Interactive AI story realms and creative learning laboratories" },
   ];
 
@@ -233,19 +283,48 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
       className="space-y-8"
     >
       {/* Prime Minister Shri KV Flagship Banner */}
-      <motion.div variants={itemVariants} id="pm-shri-header-banner" className="relative overflow-hidden bg-gradient-to-r from-red-900 to-amber-900 text-white rounded-3xl p-8 md:p-12 shadow-xl border border-amber-500/20">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-        <div className="absolute bottom-0 left-0 w-80 h-80 bg-red-500/10 rounded-full blur-2xl -ml-24 -mb-24"></div>
+      <motion.div variants={itemVariants} id="pm-shri-header-banner" className="relative overflow-hidden bg-gradient-to-r from-red-900 to-amber-900 text-white rounded-3xl p-8 md:p-12 shadow-xl border border-amber-500/20 group min-h-[400px] flex items-center">
+        {/* Background Images */}
+        {heroImages.length > 0 && (
+          <div className="absolute inset-0 z-0">
+            {heroImages.map((imgUrl, idx) => (
+              <motion.img 
+                key={idx}
+                src={imgUrl}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: idx === currentHeroIndex ? 0.35 : 0 }}
+                transition={{ duration: 1 }}
+                className="absolute inset-0 w-full h-full object-cover"
+                alt="Library Banner"
+              />
+            ))}
+          </div>
+        )}
+        {heroImages.length === 0 && (
+          <>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 z-0"></div>
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-red-500/10 rounded-full blur-2xl -ml-24 -mb-24 z-0"></div>
+          </>
+        )}
         
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+        {isAdmin && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); setEditingHeroImages([...heroImages]); setIsHeroFormOpen(true); }}
+            className="absolute top-4 left-4 z-20 px-3 py-1.5 bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-white rounded-lg text-xs font-medium flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Edit3 className="w-3.5 h-3.5" /> Edit Slider Images
+          </button>
+        )}
+        
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 w-full">
           <div className="space-y-4 max-w-2xl text-center md:text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold uppercase tracking-wider">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold uppercase tracking-wider backdrop-blur-sm">
               <Sparkles className="w-3.5 h-3.5" /> PM SHRI Exemplar Vidyalaya
             </div>
             <h1 className="text-3xl md:text-5xl font-sans font-bold tracking-tight text-amber-100">
               Welcome to PM Shri KV IIT Powai Library
             </h1>
-            <p className="text-red-100/90 leading-relaxed text-base max-w-xl">
+            <p className="text-red-100/90 leading-relaxed text-base max-w-xl backdrop-blur-sm">
               Nurturing scientific temper, critical enquiry, and literary wonder beside Powai Lake. Step into India’s flagship school digital library portal equipped with interactive AI learning experiences.
             </p>
             <div className="flex flex-wrap items-center gap-4 pt-2 justify-center md:justify-start">
@@ -259,7 +338,7 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
               )}
               <button
                 onClick={onNavigateToBooks}
-                className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl border border-white/20 transition-all inline-flex items-center gap-2"
+                className="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-medium rounded-xl border border-white/20 transition-all inline-flex items-center gap-2"
               >
                 <BookOpen className="w-4 h-4" /> Explore Recent Books
               </button>
@@ -267,9 +346,15 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
           </div>
           
           <div className="hidden lg:block w-72 h-44 bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10 relative">
-            <div className="absolute top-4 right-4 text-emerald-400 flex items-center gap-1.5 text-xs font-semibold bg-emerald-950/50 px-2.5 py-1 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Open Today
-            </div>
+            {isOpenToday ? (
+              <div className="absolute top-4 right-4 text-emerald-400 flex items-center gap-1.5 text-xs font-semibold bg-emerald-950/50 px-2.5 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Open Today
+              </div>
+            ) : (
+              <div className="absolute top-4 right-4 text-rose-400 flex items-center gap-1.5 text-xs font-semibold bg-rose-950/50 px-2.5 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-rose-400"></span> Closed Now
+              </div>
+            )}
             <div className="mt-2 space-y-4 text-xs font-mono">
               <div className="text-amber-300 uppercase tracking-widest text-center border-b border-white/10 pb-2">Vidyalaya Hours</div>
               <div className="flex flex-col text-white gap-1 items-center">
@@ -689,6 +774,113 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
             </div>
           </motion.div>
         </div>
+      )}
+      </AnimatePresence>
+
+      {/* Hero Images Modal */}
+      <AnimatePresence>
+      {isHeroFormOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        >
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+            className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full p-6"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">Edit Hero Slider Images</h3>
+              <button 
+                onClick={() => setIsHeroFormOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <label className="flex items-center justify-center w-full h-32 px-4 transition bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 border-dashed rounded-xl appearance-none cursor-pointer hover:border-amber-500 focus:outline-none">
+                <span className="flex flex-col items-center space-y-2 text-slate-500">
+                  <ImageIcon className="w-8 h-8" />
+                  <span className="font-medium">Drop images to add to the slider</span>
+                </span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  multiple 
+                  className="hidden" 
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (!files.length) return;
+                    files.forEach(file => {
+                      if (file && file.type.startsWith("image/")) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          if (event.target && typeof event.target.result === "string") {
+                            setEditingHeroImages(prev => [...prev, event.target!.result as string]);
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    });
+                  }} 
+                />
+              </label>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-h-[40vh] overflow-y-auto p-2">
+                {editingHeroImages.map((img, idx) => (
+                  <div key={idx} className="relative aspect-video rounded-xl overflow-hidden group border border-slate-200 dark:border-slate-700">
+                    <img src={img} alt={`Hero ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button 
+                      onClick={() => setEditingHeroImages(prev => prev.filter((_, i) => i !== idx))}
+                      className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                <button 
+                  onClick={() => setIsHeroFormOpen(false)}
+                  className="px-5 py-2.5 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={async () => {
+                    setIsSubmitting(true);
+                    try {
+                      const token = localStorage.getItem("kv_library_token");
+                      const res = await fetch("/api/settings/hero-images", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ images: editingHeroImages })
+                      });
+                      if (res.ok) {
+                        setHeroImages(editingHeroImages);
+                        setIsHeroFormOpen(false);
+                      }
+                    } catch (e) {
+                      console.error(e);
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl font-semibold transition-colors shadow-lg flex items-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Save Slider
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
       )}
       </AnimatePresence>
     </motion.div>
