@@ -522,6 +522,205 @@ function writeEvents(events: any[]) {
   fs.writeFileSync(EVENTS_FILE, JSON.stringify(events, null, 2), "utf-8");
 }
 
+const NOTICES_FILE = path.join(process.cwd(), "data", "notices.json");
+
+function ensureNoticesFile() {
+  const dir = path.dirname(NOTICES_FILE);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  if (!fs.existsSync(NOTICES_FILE)) {
+    // Initial static notices if none exist
+    const initialNotices = [
+      {
+        id: "1",
+        title: "PUSTAKOUPHAR: Gift a Book, Share a Smile!",
+        date: "April 01, 2026 - April 05, 2026",
+        category: "Activity",
+        content: "If you do not find a taker, deposit your books in the Library Green Book Bank. If you are looking for a gift (of books), get it from a student of your class or from the Library Green Book Bank. Old Books Can Shape Someone's Future.",
+        badge: "Book Drive",
+        priority: "High",
+        imageUrl: "/pustakouphar.jpeg"
+      },
+      {
+        id: "2",
+        title: "PM Shri e-Learning Corner Inaugration",
+        date: "June 20, 2026",
+        category: "PM-Shri",
+        content: "We are thrilled to unveil our new AI-enabled interactive e-Learning desks, funded under the prestigious PM Shri School development project. Students can now access personalized AI reading guides, digital encyclopedias, and creative writing widgets.",
+        badge: "NEP 2020",
+        priority: "Normal"
+      },
+      {
+        id: "3",
+        title: "National Reading Week: Book Review contest",
+        date: "June 25, 2026",
+        category: "Competition",
+        content: "Participate in our annual review writing competition. Stand a chance to get your reviews published in the KV Powai Web Journal and win glorious titles like 'Master Literati' and book coupons. Submit your review in the Student Creative Hub tab!",
+        badge: "Competition",
+        priority: "Normal"
+      },
+      {
+        id: "4",
+        title: "IIT Powai Guest Lecture: 'The Universe in a Library'",
+        date: "July 02, 2026",
+        category: "Activity",
+        content: "Join us for a stimulating talk in the Library Seminar Hall by Prof. Dr. S. Ramachandran from IIT Bombay (Powai). He will discuss how science, philosophy, and books expand our cosmos. Open for Standards IX to XII.",
+        badge: "Special Event",
+        priority: "Normal"
+      }
+    ];
+    fs.writeFileSync(NOTICES_FILE, JSON.stringify(initialNotices, null, 2));
+  }
+}
+
+function readNotices(): any[] {
+  ensureNoticesFile();
+  try {
+    const data = fs.readFileSync(NOTICES_FILE, "utf-8");
+    return JSON.parse(data || "[]");
+  } catch (err) {
+    return [];
+  }
+}
+
+function writeNotices(notices: any[]) {
+  ensureNoticesFile();
+  fs.writeFileSync(NOTICES_FILE, JSON.stringify(notices, null, 2), "utf-8");
+}
+
+app.get("/api/notices", (req, res) => {
+  try {
+    const notices = readNotices();
+    res.json(notices);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load notices" });
+  }
+});
+
+app.post("/api/notices", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized access." });
+    }
+    const token = authHeader.split(" ")[1];
+    const session = sessions.get(token);
+    if (!session || session.expiresAt < Date.now()) {
+      return res.status(401).json({ error: "Session expired or invalid." });
+    }
+    const users = readUsers();
+    const user = users.find(u => u.id === session.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { title, date, category, content, badge, priority, imageUrl, mediaUrls } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ error: "Title and content are required." });
+    }
+
+    const notices = readNotices();
+    const newNotice = {
+      id: Date.now().toString(),
+      title,
+      date: date || new Date().toISOString().split('T')[0],
+      category: category || "General",
+      content,
+      badge: badge || "",
+      priority: priority || "Normal",
+      imageUrl: imageUrl || "",
+      mediaUrls: Array.isArray(mediaUrls) ? mediaUrls : (imageUrl ? [imageUrl] : [])
+    };
+
+    notices.unshift(newNotice);
+    writeNotices(notices);
+    res.status(201).json(newNotice);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to create notice" });
+  }
+});
+
+app.put("/api/notices/:id", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized access." });
+    }
+    const token = authHeader.split(" ")[1];
+    const session = sessions.get(token);
+    if (!session || session.expiresAt < Date.now()) {
+      return res.status(401).json({ error: "Session expired or invalid." });
+    }
+    const users = readUsers();
+    const user = users.find(u => u.id === session.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { id } = req.params;
+    const { title, date, category, content, badge, priority, imageUrl, mediaUrls } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ error: "Title and content are required." });
+    }
+
+    const notices = readNotices();
+    const noticeIndex = notices.findIndex(n => n.id === id);
+    if (noticeIndex === -1) {
+      return res.status(404).json({ error: "Notice not found." });
+    }
+
+    notices[noticeIndex] = {
+      ...notices[noticeIndex],
+      title,
+      date: date || notices[noticeIndex].date,
+      category: category || notices[noticeIndex].category,
+      content,
+      badge: badge !== undefined ? badge : notices[noticeIndex].badge,
+      priority: priority || notices[noticeIndex].priority,
+      imageUrl: imageUrl !== undefined ? imageUrl : notices[noticeIndex].imageUrl,
+      mediaUrls: Array.isArray(mediaUrls) ? mediaUrls : notices[noticeIndex].mediaUrls || []
+    };
+
+    writeNotices(notices);
+    res.json(notices[noticeIndex]);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update notice" });
+  }
+});
+
+app.delete("/api/notices/:id", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized access." });
+    }
+    const token = authHeader.split(" ")[1];
+    const session = sessions.get(token);
+    if (!session || session.expiresAt < Date.now()) {
+      return res.status(401).json({ error: "Session expired or invalid." });
+    }
+    const users = readUsers();
+    const user = users.find(u => u.id === session.userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { id } = req.params;
+    const notices = readNotices();
+    const updatedNotices = notices.filter(n => n.id !== id);
+    
+    if (notices.length === updatedNotices.length) {
+      return res.status(404).json({ error: "Notice not found." });
+    }
+
+    writeNotices(updatedNotices);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete notice" });
+  }
+});
+
 app.get("/api/events", (req, res) => {
   try {
     const events = readEvents();

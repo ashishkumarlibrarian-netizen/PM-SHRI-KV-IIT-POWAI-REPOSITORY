@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { BookOpen, Calendar, HelpCircle, Award, Compass, ShieldAlert, Sparkles, User, FileText, CheckCircle2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { BookOpen, Calendar, HelpCircle, Award, Compass, ShieldAlert, Sparkles, User, FileText, CheckCircle2, Edit3, Plus, Trash2, Send, Loader2, X, Image as ImageIcon } from "lucide-react";
 import { NoticeItem, LibraryStat, UserType } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -10,52 +10,187 @@ interface WelcomeTabProps {
 }
 
 export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, currentUser }: WelcomeTabProps) {
+  const [notices, setNotices] = useState<NoticeItem[]>([]);
   const [selectedNotice, setSelectedNotice] = useState<NoticeItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [noticeToDelete, setNoticeToDelete] = useState<NoticeItem | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [category, setCategory] = useState("Activity");
+  const [content, setContent] = useState("");
+  const [badge, setBadge] = useState("");
+  const [priority, setPriority] = useState("Normal");
+  const [imageUrl, setImageUrl] = useState("");
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+
+  const isAdmin = currentUser?.role === "admin";
+
+  const fetchNotices = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/notices?_t=" + Date.now());
+      if (res.ok) {
+        const data = await res.json();
+        setNotices(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotices();
+  }, []);
+
+  const openForm = (notice?: NoticeItem) => {
+    if (notice) {
+      setEditingId(notice.id);
+      setTitle(notice.title);
+      setDate(notice.date || "");
+      setCategory(notice.category || "Activity");
+      setContent(notice.content);
+      setBadge(notice.badge || "");
+      setPriority(notice.priority || "Normal");
+      setImageUrl(notice.imageUrl || "");
+      setMediaUrls(notice.mediaUrls || (notice.imageUrl ? [notice.imageUrl] : []));
+    } else {
+      setEditingId(null);
+      setTitle("");
+      setDate(new Date().toISOString().split('T')[0]);
+      setCategory("Activity");
+      setContent("");
+      setBadge("");
+      setPriority("Normal");
+      setImageUrl("");
+      setMediaUrls([]);
+    }
+    setIsFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setIsFormOpen(false);
+    setEditingId(null);
+  };
+
+  const handleDelete = async () => {
+    if (!noticeToDelete) return;
+    const id = noticeToDelete.id;
+    setNoticeToDelete(null);
+    setSelectedNotice(null);
+    
+    try {
+      const token = localStorage.getItem("kv_library_token");
+      const res = await fetch(`/api/notices/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        fetchNotices();
+      } else {
+        const txt = await res.text();
+        console.error("Delete failed:", txt);
+        if (res.status === 401) {
+          alert("Your session has expired. Please log out and log back in.");
+          localStorage.removeItem("kv_library_token");
+          localStorage.removeItem("kv_library_user");
+          window.location.reload();
+        } else {
+          alert("Failed to delete notice: " + txt);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred while deleting the notice.");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !content) return;
+    
+    setIsSubmitting(true);
+    try {
+      const token = localStorage.getItem("kv_library_token");
+      const url = editingId ? `/api/notices/${editingId}` : "/api/notices";
+      const method = editingId ? "PUT" : "POST";
+      
+      const payload = { title, date, category, content, badge, priority, imageUrl: mediaUrls[0] || "", mediaUrls };
+      
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        closeForm();
+        fetchNotices();
+      } else {
+        const txt = await res.text();
+        console.error("Submit failed:", txt);
+        if (res.status === 401) {
+          alert("Your session has expired. Please log out and log back in.");
+          localStorage.removeItem("kv_library_token");
+          localStorage.removeItem("kv_library_user");
+          window.location.reload();
+        } else {
+          alert("Failed to save notice: " + txt);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred while saving the notice.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    
+    files.forEach(file => {
+      if (file && file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (event.target && typeof event.target.result === "string") {
+            setMediaUrls(prev => [...prev, event.target!.result as string]);
+            if (mediaUrls.length === 0) setImageUrl(event.target!.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
+  const removeMedia = (index: number) => {
+    setMediaUrls(prev => {
+      const newUrls = [...prev];
+      newUrls.splice(index, 1);
+      if (index === 0 && newUrls.length > 0) {
+        setImageUrl(newUrls[0]);
+      } else if (newUrls.length === 0) {
+        setImageUrl("");
+      }
+      return newUrls;
+    });
+  };
 
   const stats: LibraryStat[] = [
     { label: "Total Books", value: "18,450+", iconName: "books", description: "Vast collection from young reader classics to encyclopedias" },
     { label: "Active Readers", value: "2,100+", iconName: "users", description: "Students, teachers, and staff engaging with our digital resources" },
     { label: "Digital Realms", value: "15+", iconName: "compass", description: "Interactive AI story realms and creative learning laboratories" },
-  ];
-
-  const notices: NoticeItem[] = [
-    {
-      id: "1",
-      title: "PUSTAKOUPHAR: Gift a Book, Share a Smile!",
-      date: "April 01, 2026 - April 05, 2026",
-      category: "Activity",
-      content: "If you do not find a taker, deposit your books in the Library Green Book Bank. If you are looking for a gift (of books), get it from a student of your class or from the Library Green Book Bank. Old Books Can Shape Someone's Future.",
-      badge: "Book Drive",
-      priority: "High",
-      imageUrl: "/pustakouphar.jpeg"
-    },
-    {
-      id: "2",
-      title: "PM Shri e-Learning Corner Inaugration",
-      date: "June 20, 2026",
-      category: "PM-Shri",
-      content: "We are thrilled to unveil our new AI-enabled interactive e-Learning desks, funded under the prestigious PM Shri School development project. Students can now access personalized AI reading guides, digital encyclopedias, and creative writing widgets.",
-      badge: "NEP 2020",
-      priority: "Normal"
-    },
-    {
-      id: "3",
-      title: "National Reading Week: Book Review contest",
-      date: "June 25, 2026",
-      category: "Competition",
-      content: "Participate in our annual review writing competition. Stand a chance to get your reviews published in the KV Powai Web Journal and win glorious titles like 'Master Literati' and book coupons. Submit your review in the Student Creative Hub tab!",
-      badge: "Competition",
-      priority: "Normal"
-    },
-    {
-      id: "4",
-      title: "IIT Powai Guest Lecture: 'The Universe in a Library'",
-      date: "July 02, 2026",
-      category: "Activity",
-      content: "Join us for a stimulating talk in the Library Seminar Hall by Prof. Dr. S. Ramachandran from IIT Bombay (Powai). He will discuss how science, philosophy, and books expand our cosmos. Open for Standards IX to XII.",
-      badge: "Special Event",
-      priority: "Normal"
-    }
   ];
 
   const rules = [
@@ -179,13 +314,31 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                 <p className="text-xs text-slate-400 dark:text-slate-400">NEP & Library Updates</p>
               </div>
             </div>
-            <span className="text-xs font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full">
-              Mumbai Sector
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full hidden sm:inline-block">
+                Mumbai Sector
+              </span>
+              {isAdmin && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); openForm(); }}
+                  className="px-4 py-2 bg-slate-900 dark:bg-amber-500 hover:bg-slate-800 dark:hover:bg-amber-400 text-white dark:text-slate-900 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Add Notice
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-4">
-            {notices.map((notice, idx) => (
+            {isLoading ? (
+              <div className="flex justify-center p-12">
+                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+              </div>
+            ) : notices.length === 0 ? (
+              <div className="text-center p-12 text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                No bulletin notices available.
+              </div>
+            ) : notices.map((notice, idx) => (
               <motion.div 
                 key={notice.id} 
                 onClick={() => setSelectedNotice(notice)}
@@ -204,11 +357,17 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                     <h3 className="font-semibold text-slate-800 dark:text-slate-100 group-hover:text-red-900 dark:group-hover:text-red-400 transition-colors">
                       {notice.title}
                     </h3>
-                    {notice.imageUrl && (
-                      <div className="mt-2 mb-2 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 max-w-sm hidden md:block">
-                         <img src={notice.imageUrl} alt={notice.title} className="w-full h-32 object-cover" />
-                      </div>
-                    )}
+                    {(() => {
+                      const allMedia = notice.mediaUrls || (notice.imageUrl ? [notice.imageUrl] : []);
+                      if (allMedia.length > 0) {
+                        return (
+                          <div className="mt-2 mb-2 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 max-w-sm hidden md:block">
+                             <img src={allMedia[0]} alt={notice.title} className="w-full h-32 object-cover" />
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                     <p className="text-slate-500 dark:text-slate-300 text-sm line-clamp-1">{notice.content}</p>
                     <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-400">
                       <span>{notice.date}</span>
@@ -219,6 +378,14 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                 </div>
                 
                 <div className="flex md:flex-col justify-between items-end md:w-1/4 gap-2 border-t md:border-t-0 border-slate-100 dark:border-slate-800 pt-2 md:pt-0">
+                  {isAdmin && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openForm(notice); }}
+                      className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg absolute top-4 right-4 md:static"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
                   {notice.priority === "High" ? (
                     <span className="text-[10px] uppercase font-mono font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/50 px-2 py-0.5 rounded">
                       High Priority
@@ -300,7 +467,7 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl relative border border-slate-100"
+            className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl relative border border-slate-100 dark:border-slate-700"
           >
             <div className="flex justify-between items-start mb-4">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 text-red-800 text-xs font-semibold">
@@ -315,23 +482,209 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
               </button>
             </div>
             
-            <h3 className="text-xl font-bold text-slate-800 mb-2">{selectedNotice.title}</h3>
-            <div className="text-xs text-slate-400 mb-4 font-mono">{selectedNotice.date}</div>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">{selectedNotice.title}</h3>
+            <div className="text-xs text-slate-400 dark:text-slate-400 mb-4 font-mono">{selectedNotice.date}</div>
             
-            {selectedNotice.imageUrl && (
-              <div className="mb-4 rounded-xl overflow-hidden border border-slate-100 shadow-sm">
-                <img src={selectedNotice.imageUrl} alt={selectedNotice.title} className="w-full h-auto object-cover max-h-64" />
-              </div>
-            )}
+            {(() => {
+              const allMedia = selectedNotice.mediaUrls || (selectedNotice.imageUrl ? [selectedNotice.imageUrl] : []);
+              if (allMedia.length === 0) return null;
+              return (
+                <div className="mb-4 space-y-2">
+                  <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm">
+                    <img src={allMedia[0]} alt={selectedNotice.title} className="w-full h-auto object-cover max-h-64" />
+                  </div>
+                  {allMedia.length > 1 && (
+                    <div className="grid grid-cols-4 gap-2">
+                      {allMedia.slice(1).map((url, idx) => (
+                        <div key={idx} className="rounded-lg overflow-hidden border border-slate-100 shadow-sm aspect-square">
+                          <img src={url} alt={`${selectedNotice.title} ${idx + 1}`} className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             
-            <p className="text-slate-600 leading-relaxed text-sm mb-6">{selectedNotice.content}</p>
+            <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-sm mb-6">{selectedNotice.content}</p>
             
-            <div className="flex justify-end pt-4 border-t border-slate-100">
+            <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-700">
+              {isAdmin ? (
+                <button 
+                  onClick={() => setNoticeToDelete(selectedNotice)}
+                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4" /> Delete
+                </button>
+              ) : <div></div>}
               <button
                 onClick={() => setSelectedNotice(null)}
                 className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-medium transition-colors"
               >
                 Close BULLETIN
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      </AnimatePresence>
+
+      {/* Form Modal */}
+      <AnimatePresence>
+      {isFormOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 overflow-y-auto"
+        >
+          <div className="min-h-screen px-4 text-center">
+            <span className="inline-block h-screen align-middle" aria-hidden="true">&#8203;</span>
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="inline-block w-full max-w-2xl p-6 md:p-8 my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-slate-900 rounded-3xl shadow-xl relative border border-slate-200 dark:border-slate-800"
+            >
+              <button 
+                onClick={closeForm}
+                className="absolute top-6 right-6 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              
+              <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">
+                {editingId ? "Edit Notice" : "New Notice"}
+              </h3>
+              
+              <form onSubmit={handleSubmit} className="space-y-5 text-slate-800 dark:text-slate-200">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Notice Title</label>
+                  <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all"
+                    placeholder="Enter notice title"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Date</label>
+                    <input type="text" value={date} onChange={(e) => setDate(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all"
+                      placeholder="e.g. April 01, 2026"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Category</label>
+                    <select value={category} onChange={(e) => setCategory(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all"
+                    >
+                      <option value="Activity">Activity</option>
+                      <option value="PM-Shri">PM-Shri</option>
+                      <option value="Competition">Competition</option>
+                      <option value="General">General</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Priority</label>
+                    <select value={priority} onChange={(e) => setPriority(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all"
+                    >
+                      <option value="Normal">Normal</option>
+                      <option value="High">High</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Badge (Optional)</label>
+                    <input type="text" value={badge} onChange={(e) => setBadge(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all"
+                      placeholder="e.g. Book Drive"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Content Details</label>
+                  <textarea required value={content} onChange={(e) => setContent(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all resize-none min-h-[120px]"
+                    placeholder="Provide full description..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Notice Images (Optional)</label>
+                  <label className="flex items-center justify-center w-full h-24 px-4 transition bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 border-dashed rounded-xl appearance-none cursor-pointer hover:border-amber-500 focus:outline-none">
+                    <span className="flex items-center space-x-2 text-slate-500">
+                      <ImageIcon className="w-5 h-5" />
+                      <span className="font-medium text-sm">Drop images to attach, or browse</span>
+                    </span>
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
+                  </label>
+                  
+                  {mediaUrls.length > 0 && (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 mt-4">
+                      {mediaUrls.map((url, idx) => (
+                        <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 group">
+                          <img src={url} alt="upload preview" className="w-full h-full object-cover" />
+                          <button 
+                            type="button"
+                            onClick={() => removeMedia(idx)}
+                            className="absolute top-1 right-1 p-1 bg-red-500/90 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 flex items-center justify-end gap-4 border-t border-slate-100 dark:border-slate-800">
+                  <button type="button" onClick={closeForm}
+                    className="px-6 py-2.5 rounded-xl font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={isSubmitting}
+                    className="px-6 py-2.5 bg-slate-900 dark:bg-amber-500 hover:bg-slate-800 dark:hover:bg-amber-400 text-white dark:text-slate-900 rounded-xl font-semibold transition-colors shadow-lg shadow-slate-200 dark:shadow-none flex items-center gap-2"
+                  >
+                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                    <span>{editingId ? "Update Notice" : "Publish Notice"}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        </motion.div>
+      )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+      {noticeToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 max-w-sm w-full p-6 text-center"
+          >
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Delete Notice?</h3>
+            <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
+              Are you sure you want to delete "{noticeToDelete.title}"? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setNoticeToDelete(null)}
+                className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button onClick={handleDelete}
+                className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-colors shadow-lg shadow-red-500/20 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" /> Delete Notice
               </button>
             </div>
           </motion.div>
