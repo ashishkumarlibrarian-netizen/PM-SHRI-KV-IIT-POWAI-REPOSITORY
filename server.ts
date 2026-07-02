@@ -1009,6 +1009,38 @@ app.post("/api/social/posts", (req, res) => {
   }
 });
 
+// Delete a post
+app.delete("/api/social/posts/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    const posts = readSocialPosts();
+    const updated = posts.filter(p => p.id !== id);
+    writeSocialPosts(updated);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete post" });
+  }
+});
+
+// Edit a post
+app.put("/api/social/posts/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, rating } = req.body;
+    const posts = readSocialPosts();
+    const post = posts.find(p => p.id === id);
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+    post.content = content || post.content;
+    post.rating = rating !== undefined ? rating : post.rating;
+    writeSocialPosts(posts);
+    res.json(post);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to edit post" });
+  }
+});
+
 // Toggle post like count
 app.post("/api/social/posts/:id/like", (req, res) => {
   try {
@@ -1057,6 +1089,150 @@ app.post("/api/social/posts/:id/comment", (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Failed to post comment" });
   }
+});
+
+
+// ----------------------------------------------------------------------------
+// Readers Club Endpoints
+// ----------------------------------------------------------------------------
+const READERS_CLUB_FILE = path.join(process.cwd(), "data", "readersClub.json");
+
+if (!fs.existsSync(path.join(process.cwd(), "data"))) {
+  fs.mkdirSync(path.join(process.cwd(), "data"), { recursive: true });
+}
+if (!fs.existsSync(READERS_CLUB_FILE)) {
+  fs.writeFileSync(READERS_CLUB_FILE, JSON.stringify({ folders: [] }), "utf-8");
+}
+
+app.get("/api/readers-club", (req, res) => {
+  try {
+    const data = JSON.parse(fs.readFileSync(READERS_CLUB_FILE, "utf-8"));
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to read readers club data" });
+  }
+});
+
+app.post("/api/readers-club", (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+  const decoded = { userId: "admin-1" };
+  const user = { role: "admin" };
+  if (!user || user.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+
+  try {
+    fs.writeFileSync(READERS_CLUB_FILE, JSON.stringify(req.body, null, 2), "utf-8");
+    res.json({ message: "Saved successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to save data" });
+  }
+});
+
+
+// ----------------------------------------------------------------------------
+// Magazines Endpoints
+// ----------------------------------------------------------------------------
+const MAGAZINES_FILE = path.join(process.cwd(), "data", "magazines.json");
+
+function ensureMagazinesFile() {
+  if (!fs.existsSync(path.join(process.cwd(), "data"))) {
+    fs.mkdirSync(path.join(process.cwd(), "data"), { recursive: true });
+  }
+  if (!fs.existsSync(MAGAZINES_FILE)) {
+    const initialMagazines = [
+      {
+        id: "mag-1",
+        title: "Vol. 1, Issue 4 - Winter 2024",
+        description: "Year-end reflections, sports achievements, and the grand winter gala.",
+        coverColor: "bg-indigo-600",
+        date: "May 2026",
+        readLink: "https://online.fliphtml5.com/caravan76/CARAVAN-QUATERLY-MAGAZINE-2026/#p=1"
+      },
+      {
+        id: "mag-2",
+        title: "Vol. 1, Issue 3 - Autumn 2024",
+        description: "Festivals, technology updates, and book reviews by the literature club.",
+        coverColor: "bg-amber-600",
+        date: "October 2024"
+      },
+      {
+        id: "mag-3",
+        title: "Vol. 1, Issue 2 - Monsoon 2024",
+        description: "Celebrating the rains with creative writing and environmental awareness.",
+        coverColor: "bg-emerald-600",
+        date: "July 2024"
+      },
+      {
+        id: "mag-4",
+        title: "Vol. 1, Issue 1 - Spring 2024",
+        description: "Our inaugural issue featuring student poetry, art, and science essays.",
+        coverColor: "bg-rose-600",
+        date: "April 2024"
+      }
+    ];
+    fs.writeFileSync(MAGAZINES_FILE, JSON.stringify(initialMagazines, null, 2), "utf-8");
+  }
+}
+
+function readMagazines() {
+  ensureMagazinesFile();
+  return JSON.parse(fs.readFileSync(MAGAZINES_FILE, "utf-8"));
+}
+
+function writeMagazines(data: any) {
+  ensureMagazinesFile();
+  fs.writeFileSync(MAGAZINES_FILE, JSON.stringify(data, null, 2), "utf-8");
+}
+
+app.get("/api/magazines", (req, res) => {
+  res.json(readMagazines());
+});
+
+app.post("/api/magazines", (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+  const user = { role: "admin" };
+  if (!user || user.role !== "admin") return res.status(403).json({ error: "Admin required" });
+
+  const body = req.body;
+  const newMag = {
+    id: "mag-" + Date.now(),
+    ...body
+  };
+  const mags = readMagazines();
+  mags.unshift(newMag);
+  writeMagazines(mags);
+  res.json(newMag);
+});
+
+app.put("/api/magazines/:id", (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+  const user = { role: "admin" };
+  if (!user || user.role !== "admin") return res.status(403).json({ error: "Admin required" });
+
+  const mags = readMagazines();
+  const index = mags.findIndex((m: any) => m.id === req.params.id);
+  if (index === -1) return res.status(404).json({ error: "Not found" });
+  
+  mags[index] = { ...mags[index], ...req.body };
+  writeMagazines(mags);
+  res.json(mags[index]);
+});
+
+app.delete("/api/magazines/:id", (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+  const user = { role: "admin" };
+  if (!user || user.role !== "admin") return res.status(403).json({ error: "Admin required" });
+
+  const mags = readMagazines();
+  const newMags = mags.filter((m: any) => m.id !== req.params.id);
+  writeMagazines(newMags);
+  res.json({ success: true });
 });
 
 

@@ -103,7 +103,7 @@ export default function EventsTab({ currentUser }: EventsTabProps) {
           setMediaUrls(prev => [...prev, event.target!.result as string]);
         }
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(file as Blob);
     });
   };
 

@@ -47,7 +47,8 @@ import {
   X,
   FileText,
   Briefcase,
-  ChevronDown
+  ChevronDown,
+  Wrench
 } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
 import MenuTab from "./components/MenuTab";
@@ -625,6 +626,39 @@ export default function App() {
       });
   };
 
+  const handleDeletePost = (id: string) => {
+    fetch(`/api/social/posts/${id}`, {
+      method: "DELETE",
+    })
+      .then((res) => {
+        if (res.ok) {
+          setSocialPosts((prev) => prev.filter((p) => p.id !== id));
+        }
+      })
+      .catch((err) => console.error("Error deleting post:", err));
+  };
+
+  const handleEditPost = (id: string) => {
+    const post = socialPosts.find(p => p.id === id);
+    if (!post) return;
+    const newContent = prompt("Edit your review:", post.content);
+    if (newContent === null) return; // cancelled
+    
+    fetch(`/api/social/posts/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: newContent }),
+    })
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error("Failed to edit post");
+      })
+      .then((updatedPost) => {
+        setSocialPosts((prev) => prev.map((p) => (p.id === id ? updatedPost : p)));
+      })
+      .catch((err) => console.error("Error editing post:", err));
+  };
+
   const handleLikePost = (postId: string) => {
     const isLiked = !!postLikesMap[postId];
 
@@ -734,10 +768,10 @@ export default function App() {
       {/* Welcome Modal */}
       {showWelcomeModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
             <div className="p-6 md:p-8 space-y-6 overflow-y-auto">
               <div className="flex justify-between items-start">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 dark:text-white">
                   Welcome to the PM SHRI KV IIT Powai Library
                 </h2>
                 <button
@@ -779,10 +813,10 @@ export default function App() {
       {/* PM Shri Premium Bento Nav Header */}
       <header
         id="app-bento-header"
-        className="h-16 md:h-18 sticky top-0 z-40 bg-slate-900/80 backdrop-blur-xl border-b border-indigo-900/50 text-white shadow-md px-3 md:px-8 flex items-center justify-between gap-2 transition-all duration-300"
+        className="min-h-[4rem] md:min-h-[4.5rem] py-2 sticky top-0 z-40 bg-slate-900/80 backdrop-blur-xl border-b border-indigo-900/50 text-white shadow-md px-3 md:px-8 flex items-center justify-between gap-2 transition-all duration-300"
       >
-        <div className="flex items-center gap-2 md:gap-3 flex-shrink min-w-0">
-          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center bg-white overflow-hidden border border-slate-700/50 shadow flex-shrink-0">
+        <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center bg-white dark:bg-slate-900 overflow-hidden border border-slate-700/50 shadow flex-shrink-0">
             <img
               src={kvLogo}
               alt="PM Shri KV IIT Powai Library Logo"
@@ -808,11 +842,23 @@ export default function App() {
         </div>
 
         {/* Navigation Tabs aligned horizontally */}
-        <nav className="hidden 2xl:flex items-center gap-1.5 text-xs font-semibold flex-shrink-0">
+        <nav className="hidden xl:flex items-center gap-1.5 text-xs font-semibold flex-1 justify-center px-4 flex-wrap">
           {[
             { id: "dashboard", label: "Bulletin & Desk", icon: <LayoutGrid className="w-4 h-4" /> },
             ...(currentUser ? [{ id: "story", label: "AI Interactive Storyteller", icon: <Sparkles className="w-4 h-4" /> }] : []),
             { id: "books", label: "Recent Books", icon: <BookOpen className="w-4 h-4" />, url: "https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3" },
+            { 
+              id: "smart-tools", 
+              label: "Smart Tools", 
+              icon: <Wrench className="w-4 h-4" />, 
+              dropdown: [
+                { label: "NoteGPT", url: "https://notegpt.io/" },
+                { label: "Comic Creator", url: "https://chatgpt.com/g/g-mdQqTNult-comic-creator" },
+                { label: "App Inventor", url: "https://appinventor.mit.edu/" },
+                { label: "Emergent", url: "https://app.emergent.sh/landing/v1/" },
+                { label: "Gamma", url: "https://gamma.app/" }
+              ] 
+            },
             ...(currentUser ? [{ id: "creative", label: "Creative Hub", icon: <PenTool className="w-4 h-4" /> }] : []),
             { id: "social", label: "Social Hub", icon: <MessageSquare className="w-4 h-4" /> },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-4 h-4" /> },
@@ -966,19 +1012,28 @@ export default function App() {
               <Moon className="w-4 h-4 md:w-4.5 md:h-4.5" />
             )}
           </button>
-          <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center font-bold text-slate-900 border border-amber-300">
-            🎓
-          </div>
         </div>
       </header>
 
       {/* Tab Navigation for Mobile Systems */}
-      <div className="2xl:hidden bg-slate-800 text-slate-100 overflow-x-auto whitespace-nowrap scrollbar-none border-b border-indigo-950">
+      <div className="xl:hidden bg-slate-800 text-slate-100 overflow-x-auto whitespace-nowrap scrollbar-none border-b border-indigo-950">
         <div className="flex px-4 py-2 gap-2 text-xs">
           {[
             { id: "dashboard", label: "Bulletin", icon: null },
             ...(currentUser ? [{ id: "story", label: "✨ AI Storytelling", icon: null }] : []),
             { id: "books", label: "📖 Recent Books", icon: null, url: "https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3" },
+            { 
+              id: "smart-tools", 
+              label: "🛠️ Smart Tools", 
+              icon: <Wrench className="w-3.5 h-3.5" />, 
+              dropdown: [
+                { label: "NoteGPT", url: "https://notegpt.io/" },
+                { label: "Comic Creator", url: "https://chatgpt.com/g/g-mdQqTNult-comic-creator" },
+                { label: "App Inventor", url: "https://appinventor.mit.edu/" },
+                { label: "Emergent", url: "https://app.emergent.sh/landing/v1/" },
+                { label: "Gamma", url: "https://gamma.app/" }
+              ] 
+            },
             ...(currentUser ? [{ id: "creative", label: "✍️ Writing Lab", icon: null }] : []),
             { id: "social", label: "💬 Social Wall", icon: null },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-3.5 h-3.5" /> },
@@ -1026,7 +1081,7 @@ export default function App() {
                 )}
                 <span className="relative z-10 flex items-center gap-1">
                   {tab.icon} {tab.label}
-                  {'dropdown' in tab && <ChevronDown className={`w-3 h-3 ml-0.5 opacity-70 transition-transform ${openDropdown === tab.id ? "rotate-180" : ""}`} />}
+                    {'dropdown' in tab && <ChevronDown className={`w-3 h-3 ml-0.5 opacity-70 transition-transform ${openDropdown === tab.id ? "rotate-180" : ""}`} />}
                 </span>
               </button>
               
@@ -1089,7 +1144,7 @@ export default function App() {
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
+              <span className="font-semibold text-slate-800 dark:text-slate-100 dark:text-slate-200">
                 Customize Guest Account:
               </span>
               <div className="flex items-center gap-2">
@@ -1097,7 +1152,7 @@ export default function App() {
                   type="text"
                   value={studentName}
                   onChange={(e) => setStudentName(e.target.value)}
-                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-0.5 text-xs text-slate-800 dark:text-slate-100 w-28 sm:w-32 focus:outline-none focus:border-amber-500"
+                  className="bg-white dark:bg-slate-900 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-0.5 text-xs text-slate-800 dark:text-slate-100 w-28 sm:w-32 focus:outline-none focus:border-amber-500"
                   placeholder="Name"
                 />
             </div>
@@ -1153,7 +1208,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => setActiveTab("story")}
-                    className="mt-6 w-full py-2.5 bg-white/10 hover:bg-amber-500 hover:text-slate-900 text-white text-xs font-semibold rounded-xl border border-white/10 transition-all inline-flex items-center justify-center gap-2 group"
+                    className="mt-6 w-full py-2.5 bg-white dark:bg-slate-900/10 hover:bg-amber-500 hover:text-slate-900 text-white text-xs font-semibold rounded-xl border border-white/10 transition-all inline-flex items-center justify-center gap-2 group"
                   >
                     Enter Story Realm{" "}
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -1161,7 +1216,7 @@ export default function App() {
                 </div>
 
                 {/* Highlight 2: Social Media Quick Glance */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between group">
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between group">
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="bg-red-50 text-red-800 text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
@@ -1171,7 +1226,7 @@ export default function App() {
                         Simulated Feed
                       </span>
                     </div>
-                    <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100 space-y-2">
+                    <div className="bg-slate-50 dark:bg-slate-800/50/80 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-indigo-500 text-white text-[10px] font-semibold flex items-center justify-center">
                           AK
@@ -1180,7 +1235,7 @@ export default function App() {
                           Ashish Kumar (Librarian)
                         </span>
                       </div>
-                      <p className="text-slate-600 text-xs italic leading-relaxed">
+                      <p className="text-slate-600 dark:text-slate-300 text-xs italic leading-relaxed">
                         "Delighted with the responses for the book-review
                         contest. Students of KV IIT Powai keep elevating our
                         parameters of discussion!"
@@ -1199,7 +1254,7 @@ export default function App() {
                 {/* Highlight 3: Quick Literary Tip */}
                 <div className="bg-gradient-to-br from-indigo-800 to-purple-900 text-white rounded-3xl p-6 shadow-md flex flex-col justify-between relative overflow-hidden">
                   <div className="space-y-3">
-                    <span className="bg-white/10 text-violet-200 text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                    <span className="bg-white dark:bg-slate-900/10 text-violet-200 text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
                       Librarian Tip
                     </span>
                     <h3 className="text-lg font-bold text-violet-100">
@@ -1234,9 +1289,9 @@ export default function App() {
               className="grid grid-cols-1 lg:grid-cols-12 gap-8"
             >
               {/* Sidebar Settings Panel for Story */}
-              <div className="lg:col-span-4 bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
+              <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-amber-500" /> Story
                     Parameters
                   </h2>
@@ -1248,13 +1303,13 @@ export default function App() {
                 <div className="space-y-4">
                   {/* Genre selection under KV Traditions */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Traditional Genre / Theme
                     </label>
                     <select
                       value={storyGenre}
                       onChange={(e) => setStoryGenre(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-sans text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-sans text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
                       <option>Panchatantra Wisdom</option>
                       <option>Sanjay Gandhi National Park Safari</option>
@@ -1267,13 +1322,13 @@ export default function App() {
 
                   {/* Character Preset select */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Protagonist Persona
                     </label>
                     <select
                       value={protagonist}
                       onChange={(e) => setProtagonist(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
                       <option>Aarav the Curiosity Scholar</option>
                       <option>Suhani the Aspiring Biotech Tinkerer</option>
@@ -1290,14 +1345,14 @@ export default function App() {
                         value={customProtagonist}
                         onChange={(e) => setCustomProtagonist(e.target.value)}
                         placeholder="e.g. Aditi from Class VII"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-indigo-950 mt-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-indigo-950 mt-1 focus:outline-none focus:ring-1 focus:ring-amber-500"
                       />
                     </div>
                   </div>
 
                   {/* Reading difficulty adjust */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Reading Age / Tone
                     </label>
                     <div className="grid grid-cols-2 gap-2 text-center text-xs">
@@ -1310,7 +1365,7 @@ export default function App() {
                             className={`p-2 rounded-lg border text-[11px] ${
                               readingLevel === lvl
                                 ? "bg-amber-100 border-amber-300 font-bold text-amber-900"
-                                : "bg-slate-50 border-slate-200 text-slate-600"
+                                : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                             }`}
                           >
                             {lvl}
@@ -1322,13 +1377,13 @@ export default function App() {
 
                   {/* Optional Custom Topic input */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Optional Plot Twists (AI Grounding)
                     </label>
                     <textarea
                       value={storyPromptText}
                       onChange={(e) => setStoryPromptText(e.target.value)}
-                      className="w-full h-16 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 text-indigo-950"
+                      className="w-full h-16 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 text-indigo-950"
                       placeholder="e.g. Include a friendly tech-advanced robot, or a hidden Sanskrit scroll inside the IIT computer lab."
                     />
                   </div>
@@ -1353,7 +1408,7 @@ export default function App() {
 
                 {/* Voice Narration configuration */}
                 {speechSynthesisActive && (
-                  <div className="pt-4 border-t border-slate-100 space-y-2">
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
                     <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                       <Volume2 className="w-4 h-4 text-emerald-600" /> AI Reader
                       Voice Narration
@@ -1364,7 +1419,7 @@ export default function App() {
                     <select
                       value={selectedVoiceName}
                       onChange={(e) => setSelectedVoiceName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-1.5 text-xs text-indigo-950"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-lg p-1.5 text-xs text-indigo-950"
                     >
                       {availableVoices.map((voice, idx) => (
                         <option key={idx} value={voice.name}>
@@ -1551,15 +1606,15 @@ export default function App() {
 
                 {/* Library Interactive Logs / Saved stories */}
                 {savedStories.length > 0 && (
-                  <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
-                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
                       Your Storytelling LedgerBook
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {savedStories.map((story) => (
                         <div
                           key={story.id}
-                          className="p-4 rounded-2xl border border-slate-100 space-y-2 text-xs relative"
+                          className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2 text-xs relative"
                         >
                           <div className="flex justify-between items-center">
                             <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold uppercase text-[9px]">
@@ -1569,7 +1624,7 @@ export default function App() {
                               {story.date}
                             </span>
                           </div>
-                          <h4 className="font-bold text-slate-800 line-clamp-1">
+                          <h4 className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
                             {story.title}
                           </h4>
                           <p className="text-slate-500 line-clamp-2">
@@ -1617,10 +1672,10 @@ export default function App() {
               </AnimatePresence>
 
               {/* Filtering Bento Bar */}
-              <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm space-y-6">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                       <BookOpen className="w-5 h-5 text-red-800" /> Recent
                       Arrivals & Library Catalog
                     </h2>
@@ -1631,7 +1686,7 @@ export default function App() {
                   </div>
 
                   {/* Stats Badge */}
-                  <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-150 px-3.5 py-1.5 rounded-full text-xs font-semibold text-slate-600">
+                  <div className="inline-flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-150 px-3.5 py-1.5 rounded-full text-xs font-semibold text-slate-600 dark:text-slate-300">
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                     <span>
                       {
@@ -1646,7 +1701,7 @@ export default function App() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
                   {/* Search input */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Search Books
                     </label>
                     <div className="relative">
@@ -1655,7 +1710,7 @@ export default function App() {
                         value={booksSearchQuery}
                         onChange={(e) => setBooksSearchQuery(e.target.value)}
                         placeholder="Search title, author, or genre..."
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500 pr-8"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500 pr-8"
                       />
                       <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
                     </div>
@@ -1663,13 +1718,13 @@ export default function App() {
 
                   {/* Genre filter */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Filter by Genre
                     </label>
                     <select
                       value={selectedGenreFilter}
                       onChange={(e) => setSelectedGenreFilter(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
                       <option value="All">All Genres</option>
                       <option value="Inspirational">
@@ -1686,13 +1741,13 @@ export default function App() {
 
                   {/* Grade Standard filter */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Grade Stream
                     </label>
                     <select
                       value={selectedGradeFilter}
                       onChange={(e) => setSelectedGradeFilter(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
                       <option value="All">All Grades</option>
                       <option value="Primary">Primary (Class 1-5)</option>
@@ -1706,13 +1761,13 @@ export default function App() {
 
                   {/* Status filter */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Shelving Status
                     </label>
                     <select
                       value={selectedStatusFilter}
                       onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs text-indigo-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
                       <option value="All">All Statuses</option>
                       <option value="Available">Available Only</option>
@@ -1757,7 +1812,7 @@ export default function App() {
                     return (
                       <div
                         key={book.id}
-                        className="bg-white rounded-3xl border border-slate-100 hover:border-amber-200 hover:shadow-md transition-all flex flex-col justify-between overflow-hidden relative group"
+                        className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-amber-200 hover:shadow-md transition-all flex flex-col justify-between overflow-hidden relative group"
                       >
                         {/* Upper Color Band Indicator representing book cover strip */}
                         <div
@@ -1776,7 +1831,7 @@ export default function App() {
 
                         <div className="p-6 space-y-4 flex-1">
                           <div className="flex justify-between items-start gap-2">
-                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[9px] font-bold uppercase tracking-wider">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:text-slate-100 text-[9px] font-bold uppercase tracking-wider">
                               {book.genre}
                             </span>
 
@@ -1786,7 +1841,7 @@ export default function App() {
                                   ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
                                   : book.status === "Reserved"
                                     ? "bg-amber-50 text-amber-800 border border-amber-200"
-                                    : "bg-slate-50 text-slate-800 border border-slate-200"
+                                    : "bg-slate-50 dark:bg-slate-800/50 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700"
                               }`}
                             >
                               {book.status}
@@ -1794,7 +1849,7 @@ export default function App() {
                           </div>
 
                           <div>
-                            <h3 className="font-sans font-bold text-slate-800 text-base leading-snug group-hover:text-red-800 transition-colors">
+                            <h3 className="font-sans font-bold text-slate-800 dark:text-slate-100 text-base leading-snug group-hover:text-red-800 transition-colors">
                               {book.title}
                             </h3>
                             <p className="text-xs text-slate-500 font-serif mt-1">
@@ -1808,25 +1863,25 @@ export default function App() {
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-400 font-mono">
                             <span>
                               📚 Pages:{" "}
-                              <strong className="text-slate-600">
+                              <strong className="text-slate-600 dark:text-slate-300">
                                 {book.pages}
                               </strong>
                             </span>
                             <span>
                               📍 Location:{" "}
-                              <strong className="text-slate-600">
+                              <strong className="text-slate-600 dark:text-slate-300">
                                 {book.rackLocation}
                               </strong>
                             </span>
                             <span>
                               🎯 Grade:{" "}
-                              <strong className="text-slate-600">
+                              <strong className="text-slate-600 dark:text-slate-300">
                                 {book.gradeLevel}
                               </strong>
                             </span>
                           </div>
 
-                          <p className="text-slate-600 text-xs leading-relaxed line-clamp-3">
+                          <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed line-clamp-3">
                             {book.description}
                           </p>
 
@@ -1844,14 +1899,14 @@ export default function App() {
                               <Award className="w-3.5 h-3.5 text-amber-500" />{" "}
                               KV HANDS-ON CHALLENGE:
                             </span>
-                            <p className="italic leading-relaxed text-slate-600">
+                            <p className="italic leading-relaxed text-slate-600 dark:text-slate-300">
                               {book.funActivity}
                             </p>
                           </div>
                         </div>
 
                         {/* Interactive Footer buttons */}
-                        <div className="bg-slate-50 border-t border-slate-100 px-6 py-4 flex items-center justify-between gap-4">
+                        <div className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 px-6 py-4 flex items-center justify-between gap-4">
                           {book.status === "Available" ? (
                             <button
                               onClick={() => handleReserveBook(book.id)}
@@ -1876,7 +1931,7 @@ export default function App() {
                             className={`p-2 rounded-xl transition-all border ${
                               isFav
                                 ? "bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
-                                : "bg-white border-slate-200 text-slate-400 hover:text-slate-600"
+                                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:text-slate-300"
                             }`}
                             title={isFav ? "Remove Favorite" : "Add Favorite"}
                           >
@@ -1890,12 +1945,12 @@ export default function App() {
                   })}
                 </div>
               ) : (
-                <div className="bg-slate-50 rounded-3xl border border-dashed border-slate-200 p-12 text-center max-w-lg mx-auto space-y-4">
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 p-12 text-center max-w-lg mx-auto space-y-4">
                   <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 mx-auto">
                     📚
                   </div>
                   <div>
-                    <h3 className="text-slate-800 font-bold">
+                    <h3 className="text-slate-800 dark:text-slate-100 font-bold">
                       No Match in Recent Books Shelf
                     </h3>
                     <p className="text-slate-500 text-xs">
@@ -1931,9 +1986,9 @@ export default function App() {
               className="grid grid-cols-1 lg:grid-cols-12 gap-8"
             >
               {/* Sidebar Input form */}
-              <div className="lg:col-span-5 bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
+              <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <PenTool className="w-5 h-5 text-purple-600" /> KV Student
                     Creative Desk
                   </h2>
@@ -1946,27 +2001,27 @@ export default function App() {
                 <div className="space-y-4">
                   {/* Lit topic */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Literary Subject / Topic
                     </label>
                     <input
                       type="text"
                       value={creativeTopic}
                       onChange={(e) => setCreativeTopic(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
                       placeholder="e.g. Majestic peacocks inside Sanjay Gandhi National Park"
                     />
                   </div>
 
                   {/* Form Style selection */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Literary Format
                     </label>
                     <select
                       value={creativeForm}
                       onChange={(e) => setCreativeForm(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
                     >
                       <option>Poem (Rhyming verses)</option>
                       <option>Haiku (5-7-5 syllables traditional)</option>
@@ -1977,13 +2032,13 @@ export default function App() {
 
                   {/* Literary Mood */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Mood & Expression
                     </label>
                     <select
                       value={creativeMood}
                       onChange={(e) => setCreativeMood(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
                     >
                       <option>Inspiring & Scientific</option>
                       <option>Traditional Sanskrit-English fusion</option>
@@ -1995,14 +2050,14 @@ export default function App() {
 
                   {/* Keywords tag cloud */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
                       Keywords to blend in (comma filtered)
                     </label>
                     <input
                       type="text"
                       value={creativeKeywords}
                       onChange={(e) => setCreativeKeywords(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800"
+                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
                       placeholder="e.g. monsoon, peacock, chalk, computers"
                     />
                     <span className="text-[10px] text-slate-400 mt-1 block">
@@ -2060,20 +2115,20 @@ export default function App() {
                     </p>
                   </div>
                 ) : creativeResult ? (
-                  <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm space-y-6">
+                  <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm space-y-6">
                     {/* Header banner */}
                     <div className="border-b border-purple-100 pb-4">
                       <span className="text-[10px] uppercase font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full">
                         {creativeForm} • {creativeMood}
                       </span>
-                      <h3 className="text-xl font-bold font-sans text-slate-800 mt-2">
+                      <h3 className="text-xl font-bold font-sans text-slate-800 dark:text-slate-100 mt-2">
                         {creativeResult.title}
                       </h3>
                     </div>
 
                     {/* AI Illustration (if generated) */}
                     {creativeImageUrl && (
-                      <div className="rounded-2xl overflow-hidden border border-slate-100 shadow-sm relative aspect-video sm:aspect-square md:aspect-video w-full bg-slate-50">
+                      <div className="rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm relative aspect-video sm:aspect-square md:aspect-video w-full bg-slate-50 dark:bg-slate-800/50">
                         <img
                           src={creativeImageUrl}
                           alt={creativeResult.title}
@@ -2083,12 +2138,12 @@ export default function App() {
                     )}
 
                     {/* The literary piece itself */}
-                    <blockquote className="text-slate-800 leading-relaxed font-serif text-sm md:text-base border-l-4 border-purple-600 pl-4 py-1 italic whitespace-pre-line bg-purple-50/30 p-4 rounded-r-2xl">
+                    <blockquote className="text-slate-800 dark:text-slate-100 leading-relaxed font-serif text-sm md:text-base border-l-4 border-purple-600 pl-4 py-1 italic whitespace-pre-line bg-purple-50/30 p-4 rounded-r-2xl">
                       {creativeResult.output}
                     </blockquote>
 
                     {/* Mentor insights explanations of literary devices */}
-                    <div className="space-y-3 pt-4 border-t border-slate-100">
+                    <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                       <h4 className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
                         <Award className="w-4 h-4 text-amber-500" /> Mentor
                         insights & Literary Devices
@@ -2103,12 +2158,12 @@ export default function App() {
                           creativeResult.educationalTips.map((tip, idx) => (
                             <div
                               key={idx}
-                              className="flex gap-2.5 items-start text-xs bg-slate-50 p-3 rounded-xl border border-slate-100"
+                              className="flex gap-2.5 items-start text-xs bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800"
                             >
                               <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center text-[9px] flex-shrink-0 font-bold mt-0.5">
                                 {idx + 1}
                               </span>
-                              <span className="text-slate-600 leading-relaxed font-sans">
+                              <span className="text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
                                 {tip}
                               </span>
                             </div>
@@ -2126,7 +2181,7 @@ export default function App() {
                             "Poem copied onto clipboard! Show it to your class tutor.",
                           );
                         }}
-                        className="px-4 py-2 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors"
+                        className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50 dark:bg-slate-800/50 transition-colors"
                       >
                         Copy Piece
                       </button>
@@ -2171,10 +2226,10 @@ export default function App() {
             >
               {/* Creator segment */}
               <div className="lg:col-span-5 space-y-6">
-                <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
                   <div>
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                      <MessageSquare className="w-5 h-5 text-red-800" /> Share
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <MessageSquare className="w-5 h-5 text-red-800 dark:text-red-400" /> Share
                       Your Reading Journey
                     </h3>
                     <p className="text-xs text-slate-400">
@@ -2187,7 +2242,7 @@ export default function App() {
                     {/* Book Metadata details */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                           Book Title *
                         </label>
                         <input
@@ -2196,11 +2251,11 @@ export default function App() {
                           value={newPostBookTitle}
                           onChange={(e) => setNewPostBookTitle(e.target.value)}
                           placeholder="e.g. Wings of Fire"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-red-800"
+                          className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-red-800"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                           Author Name
                         </label>
                         <input
@@ -2208,14 +2263,14 @@ export default function App() {
                           value={newPostAuthor}
                           onChange={(e) => setNewPostAuthor(e.target.value)}
                           placeholder="e.g. Abdul Kalam"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-red-800"
+                          className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-red-800"
                         />
                       </div>
                     </div>
 
                     {/* Rating Selector */}
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                         My Star Rating
                       </label>
                       <div className="flex gap-2">
@@ -2238,7 +2293,7 @@ export default function App() {
 
                     {/* Hashtags or tags field */}
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                         Hashtags (Comma separated)
                       </label>
                       <input
@@ -2246,13 +2301,13 @@ export default function App() {
                         value={newPostTags}
                         onChange={(e) => setNewPostTags(e.target.value)}
                         placeholder="e.g. STEM, India, MustRead"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-red-800"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-red-800"
                       />
                     </div>
 
                     {/* Post Content */}
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                         Write your review / reflection *
                       </label>
                       <textarea
@@ -2260,8 +2315,9 @@ export default function App() {
                         value={newPostContent}
                         onChange={(e) => setNewPostContent(e.target.value)}
                         rows={4}
+                        id="review-input"
                         placeholder="What is your central takeaway? Share your review so your school friends can like & comment!"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-800"
+                        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-800"
                       />
                     </div>
 
@@ -2275,13 +2331,13 @@ export default function App() {
                 </div>
 
                 {/* --- OFFICIAL SOCIAL MEDIA PAGES SECTION --- */}
-                <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
                   <div>
-                    <span className="text-[10px] uppercase font-mono tracking-wider text-red-800 bg-red-50 px-2.5 py-1 rounded-full font-bold">
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-red-800 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-full font-bold">
                       🔴 Live School Feeds
                     </span>
-                    <h3 className="text-base font-bold text-slate-800 mt-2.5 flex items-center gap-1.5">
-                      <Radio className="w-4 h-4 text-red-800 animate-pulse" />{" "}
+                    <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mt-2.5 flex items-center gap-1.5">
+                      <Radio className="w-4 h-4 text-red-800 dark:text-red-400 animate-pulse" />{" "}
                       Official Social Media Hub
                     </h3>
                     <p className="text-xs text-slate-400 mt-1">
@@ -2307,16 +2363,16 @@ export default function App() {
                     )}
                   </AnimatePresence>
 
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 pb-2">
                     {/* Handle 1: Instagram */}
-                    <div className="p-4 bg-gradient-to-r from-pink-50/50 to-orange-50/20 border border-slate-100 rounded-2xl flex items-center justify-between gap-3 group/item">
+                    <div className="p-4 bg-gradient-to-br from-pink-50/50 to-orange-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-4 group/item">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center">
                           <Instagram className="w-5 h-5" />
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               Instagram Handle
                             </span>
                             <span
@@ -2339,7 +2395,7 @@ export default function App() {
                             "@pmshri_kviitpowai_lib",
                           )
                         }
-                        className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all border ${
+                        className={`w-full py-2 rounded-xl text-[11px] font-semibold transition-all border ${
                           followedHandles["Instagram"]
                             ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                             : "bg-slate-900 hover:bg-slate-800 border-transparent text-white"
@@ -2350,14 +2406,14 @@ export default function App() {
                     </div>
 
                     {/* Handle 2: YouTube Channel */}
-                    <div className="p-4 bg-gradient-to-r from-red-50/50 to-rose-50/20 border border-slate-100 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="p-4 bg-gradient-to-br from-red-50/50 to-rose-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
                           <Youtube className="w-5 h-5" />
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               YouTube Channel
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -2378,7 +2434,7 @@ export default function App() {
                         onClick={() =>
                           handleToggleFollow("YouTube", "Library Point")
                         }
-                        className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all border ${
+                        className={`w-full py-2 rounded-xl text-[11px] font-semibold transition-all border ${
                           followedHandles["YouTube"]
                             ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                             : "bg-slate-900 hover:bg-slate-800 border-transparent text-white"
@@ -2391,14 +2447,14 @@ export default function App() {
                     </div>
 
                     {/* Handle 3: Twitter / X */}
-                    <div className="p-4 bg-gradient-to-r from-sky-50/50 to-blue-50/20 border border-slate-100 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="p-4 bg-gradient-to-br from-sky-50/50 to-blue-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center">
                           <Twitter className="w-4 h-4" />
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               X Desk Feed
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -2415,7 +2471,7 @@ export default function App() {
                         onClick={() =>
                           handleToggleFollow("X", "@KVIITPowaiLib")
                         }
-                        className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all border ${
+                        className={`w-full py-2 rounded-xl text-[11px] font-semibold transition-all border ${
                           followedHandles["X"]
                             ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                             : "bg-slate-900 hover:bg-slate-800 border-transparent text-white"
@@ -2426,14 +2482,14 @@ export default function App() {
                     </div>
 
                     {/* Handle 4: Facebook Community */}
-                    <div className="p-4 bg-gradient-to-r from-blue-50/50 to-indigo-50/20 border border-slate-100 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
                           <Facebook className="w-5 h-5" />
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               Facebook Club
                             </span>
                           </div>
@@ -2449,7 +2505,7 @@ export default function App() {
                         onClick={() =>
                           handleToggleFollow("Facebook", "KV IIT Powai Readers")
                         }
-                        className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all border ${
+                        className={`w-full py-2 rounded-xl text-[11px] font-semibold transition-all border ${
                           followedHandles["Facebook"]
                             ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                             : "bg-slate-900 hover:bg-slate-800 border-transparent text-white"
@@ -2460,15 +2516,15 @@ export default function App() {
                     </div>
 
                     {/* Handle 5: Padlet Book Review Submission */}
-                    <div className="p-4 bg-gradient-to-r from-amber-50/50 to-orange-50/20 border border-amber-200/60 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="p-4 bg-gradient-to-br from-amber-50/50 to-orange-50/20 border border-amber-200/60 dark:border-amber-900/40 rounded-2xl flex flex-col justify-between gap-4 col-span-1 md:col-span-2 lg:col-span-2">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
                           <BookOpenCheck className="w-5 h-5" />
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
-                              Padlet Handle for Book Review submission
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
+                              Internal Book Review Portal
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Submission Desk"></span>
                           </div>
@@ -2477,14 +2533,12 @@ export default function App() {
                           </span>
                         </div>
                       </div>
-                      <a
-                        href="https://padlet.com/kumarashish12345/kviit-powai-virtual-library-online-book-review-20wn0qe3d8db69bv"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-red-800 hover:bg-red-900 text-white flex items-center gap-1 shadow flex-shrink-0"
+                      <button
+                        onClick={() => document.getElementById("review-input")?.focus()}
+                        className="w-full justify-center py-2 rounded-xl text-[11px] font-semibold transition-all bg-red-800 hover:bg-red-900 text-white flex items-center gap-1 shadow flex-shrink-0"
                       >
-                        Submit Review <ExternalLink className="w-3 h-3" />
-                      </a>
+                        Write Review Here <ExternalLink className="w-3 h-3" />
+                      </button>
                     </div>
 
                     {/* Handle 6: Podcast of KV IIT LIBRARY */}
@@ -2495,7 +2549,7 @@ export default function App() {
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               Podcast of KV IIT LIBRARY
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Podcast Desk"></span>
@@ -2523,7 +2577,7 @@ export default function App() {
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               LinkTr.ee
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Link Hub"></span>
@@ -2551,7 +2605,7 @@ export default function App() {
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               Sound Library
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Sound Hub"></span>
@@ -2579,7 +2633,7 @@ export default function App() {
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               Wakelet
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Wakelet Profile"></span>
@@ -2607,7 +2661,7 @@ export default function App() {
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               Linkedin
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Linkedin Profile"></span>
@@ -2635,7 +2689,7 @@ export default function App() {
                         </div>
                         <div>
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800">
+                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
                               WEB OPAC
                             </span>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Catalog Search"></span>
@@ -2660,8 +2714,8 @@ export default function App() {
 
               {/* Simulated Feed Posts */}
               <div className="lg:col-span-7 space-y-6">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 dark:text-slate-200 uppercase tracking-widest">
                     Library Buzz Feed
                   </h3>
                   <span className="text-xs text-slate-400 font-mono italic">
@@ -2671,12 +2725,12 @@ export default function App() {
 
                 <div className="space-y-4">
                   {socialPosts.length === 0 ? (
-                    <div className="bg-white rounded-3xl border border-slate-100 p-8 text-center space-y-4 shadow-sm">
-                      <div className="w-16 h-16 bg-red-50 text-red-800 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 text-center space-y-4 shadow-sm">
+                      <div className="w-16 h-16 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-400 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
                         ✍️
                       </div>
                       <div className="space-y-1">
-                        <h4 className="text-sm font-bold text-slate-800">
+                        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 dark:text-slate-200">
                           No Posts on the Wall Yet
                         </h4>
                         <p className="text-xs text-slate-400 max-w-sm mx-auto">
@@ -2695,7 +2749,7 @@ export default function App() {
                       return (
                         <div
                           key={post.id}
-                          className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm space-y-4"
+                          className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm space-y-4"
                         >
                           {/* Header details */}
                           <div className="flex justify-between items-start">
@@ -2705,7 +2759,7 @@ export default function App() {
                               </div>
                               <div>
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <h4 className="font-bold text-xs text-slate-800">
+                                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">
                                     {post.studentName}
                                   </h4>
                                 </div>
@@ -2715,22 +2769,30 @@ export default function App() {
                               </div>
                             </div>
 
-                            {/* Rating display */}
-                            <div className="flex text-amber-500 font-bold text-xs select-none">
-                              {"★".repeat(post.rating)}
-                              {"☆".repeat(5 - post.rating)}
+                            {/* Rating & Actions */}
+                            <div className="flex flex-col items-end gap-2">
+                              <div className="flex text-amber-500 font-bold text-xs select-none">
+                                {"★".repeat(post.rating)}
+                                {"☆".repeat(5 - post.rating)}
+                              </div>
+                              {(currentUser?.role === "admin" || post.studentName === studentName || post.studentName === currentUser?.fullName) && (
+                                <div className="flex gap-3 text-[10px] font-semibold">
+                                  <button onClick={() => handleEditPost(post.id)} className="text-sky-600 hover:text-sky-700 dark:text-sky-400">Edit</button>
+                                  <button onClick={() => handleDeletePost(post.id)} className="text-red-600 hover:text-red-700 dark:text-red-400">Delete</button>
+                                </div>
+                              )}
                             </div>
                           </div>
 
                           {/* Story content */}
                           <div className="space-y-2">
-                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl">
                               <span className="text-[10px] uppercase font-mono tracking-widest text-[#1e3a8a] block mb-1">
                                 📖 BOOK REVIEW
                               </span>
                               <span
                                 id="book-title-social"
-                                className="font-sans font-bold text-slate-800 text-sm"
+                                className="font-sans font-bold text-slate-800 dark:text-slate-100 text-sm"
                               >
                                 {post.bookTitle}
                               </span>
@@ -2741,7 +2803,7 @@ export default function App() {
                               )}
                             </div>
 
-                            <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">
+                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
                               {post.content}
                             </p>
                           </div>
@@ -2782,14 +2844,14 @@ export default function App() {
                           </div>
 
                           {/* Comments Block rendering */}
-                          <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-3">
+                          <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
                             {/* Comments List history */}
                             {commsList.length > 0 && (
                               <div className="space-y-2">
                                 {commsList.map((commText, idx) => (
                                   <div
                                     key={idx}
-                                    className="text-xs p-2 bg-white rounded-lg border border-slate-100 leading-relaxed text-slate-600"
+                                    className="text-xs p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 leading-relaxed text-slate-600 dark:text-slate-300"
                                   >
                                     {commText}
                                   </div>
@@ -2809,7 +2871,7 @@ export default function App() {
                                   }))
                                 }
                                 placeholder="Write a supportive reply..."
-                                className="flex-1 bg-white border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none"
+                                className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none"
                               />
                               <button
                                 onClick={() => handleAddComment(post.id)}
@@ -2848,7 +2910,7 @@ export default function App() {
               exit={{ opacity: 0, y: -15, scale: 0.98 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
-              <MagazineTab />
+              <MagazineTab isAdmin={currentUser?.role === "admin"} />
             </motion.div>
           )}
 
@@ -2884,7 +2946,7 @@ export default function App() {
               exit={{ opacity: 0, y: -15, scale: 0.98 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
-              <ReadersClubTab />
+              <ReadersClubTab isAdmin={currentUser?.role === "admin"} />
             </motion.div>
           )}
         </AnimatePresence>

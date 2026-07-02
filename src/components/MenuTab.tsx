@@ -80,11 +80,11 @@ export default function MenuTab() {
       className="max-w-2xl mx-auto py-8 px-4"
     >
       <div className="text-center mb-10">
-        <div className="w-16 h-16 bg-slate-800 rounded-2xl mx-auto flex items-center justify-center mb-4 border border-slate-700 shadow-xl">
+        <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl mx-auto flex items-center justify-center mb-4 border border-slate-200 dark:border-slate-700 shadow-xl">
           <School className="w-8 h-8 text-amber-500" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-100 mb-2">Important Links</h2>
-        <p className="text-slate-400 text-sm">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Important Links</h2>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">
           Quick access to essential educational resources and portals.
         </p>
       </div>
@@ -92,7 +92,7 @@ export default function MenuTab() {
       <div className="space-y-8">
         {linkCategories.map((category, idx) => (
           <div key={idx} className="space-y-4">
-            <h3 className="text-sm font-bold text-amber-500 uppercase tracking-widest px-2">
+            <h3 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-widest px-2">
               {category.title}
             </h3>
             <div className="space-y-2">
@@ -102,15 +102,15 @@ export default function MenuTab() {
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center p-4 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/50 rounded-xl transition-all group"
+                  className="flex items-center p-4 bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-amber-500/50 dark:hover:border-amber-500/50 rounded-xl transition-all group"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform mr-4 border border-slate-700">
+                  <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform mr-4 border border-slate-200 dark:border-slate-700">
                     {link.icon}
                   </div>
-                  <span className="font-medium text-slate-200 group-hover:text-amber-400 transition-colors flex-grow">
+                  <span className="font-medium text-slate-800 dark:text-slate-200 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors flex-grow">
                     {link.title}
                   </span>
-                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-amber-500 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
+                  <ExternalLink className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-amber-600 dark:group-hover:text-amber-500 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
                 </a>
               ))}
             </div>

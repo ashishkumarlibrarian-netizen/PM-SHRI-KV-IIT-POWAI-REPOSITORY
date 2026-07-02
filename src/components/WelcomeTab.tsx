@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { BookOpen, Calendar, HelpCircle, Award, Compass, ShieldAlert, Sparkles, User, FileText, CheckCircle2, Edit3, Plus, Trash2, Send, Loader2, X, Image as ImageIcon } from "lucide-react";
-import { NoticeItem, LibraryStat, UserType } from "../types";
+import { NoticeItem, LibraryStat,  } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 
 interface WelcomeTabProps {
   onNavigateToAIStories: () => void;
   onNavigateToBooks: () => void;
-  currentUser: UserType | null;
+  currentUser:  | null;
 }
 
 export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, currentUser }: WelcomeTabProps) {
@@ -211,7 +211,7 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
     if (!files.length) return;
     
     files.forEach(file => {
-      if (file && file.type.startsWith("image/")) {
+      if (file && (file as File).type.startsWith("image/")) {
         const reader = new FileReader();
         reader.onload = (event) => {
           if (event.target && typeof event.target.result === "string") {
@@ -219,7 +219,7 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
             if (mediaUrls.length === 0) setImageUrl(event.target!.result as string);
           }
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(file as Blob);
       }
     });
   };
@@ -338,7 +338,7 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
               )}
               <button
                 onClick={onNavigateToBooks}
-                className="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-medium rounded-xl border border-white/20 transition-all inline-flex items-center gap-2"
+                className="px-6 py-3 bg-white/10 dark:bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-medium rounded-xl border border-white/20 transition-all inline-flex items-center gap-2"
               >
                 <BookOpen className="w-4 h-4" /> Explore Recent Books
               </button>
@@ -813,14 +813,14 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                     const files = Array.from(e.target.files || []);
                     if (!files.length) return;
                     files.forEach(file => {
-                      if (file && file.type.startsWith("image/")) {
+                      if (file && (file as File).type.startsWith("image/")) {
                         const reader = new FileReader();
                         reader.onload = (event) => {
                           if (event.target && typeof event.target.result === "string") {
                             setEditingHeroImages(prev => [...prev, event.target!.result as string]);
                           }
                         };
-                        reader.readAsDataURL(file);
+                        reader.readAsDataURL(file as Blob);
                       }
                     });
                   }} 
