@@ -6,8 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 interface WelcomeTabProps {
   onNavigateToAIStories: () => void;
   onNavigateToBooks: () => void;
-  currentUser:  | null;
-}
+  currentUser: any | null;}
 
 export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, currentUser }: WelcomeTabProps) {
   const [notices, setNotices] = useState<NoticeItem[]>([]);

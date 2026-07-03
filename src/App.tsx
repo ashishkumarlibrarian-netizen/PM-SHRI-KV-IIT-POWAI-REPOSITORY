@@ -49,7 +49,7 @@ import {
   Briefcase,
   ChevronDown,
   Wrench
-} from "lucide-react";
+, Music } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
 import MenuTab from "./components/MenuTab";
 import MagazineTab from "./components/MagazineTab";
@@ -72,6 +72,45 @@ import { RECENT_BOOKS_DATA } from "./data/recentBooks";
 const INITIAL_SOCIAL_POSTS: SocialFeedPost[] = [];
 
 export default function App() {
+  const [librarySettings, setLibrarySettings] = useState({
+    logoUrl: "",
+    name: "PM SHRI SCHOOL",
+    tag: "IIT POWAI SECTOR"
+  });
+  const [isEditingSettings, setIsEditingSettings] = useState(false);
+  const [editSettingsForm, setEditSettingsForm] = useState({ logoUrl: "", name: "", tag: "" });
+
+  useEffect(() => {
+    fetch('/api/settings/library')
+      .then(r => r.json())
+      .then(data => {
+        setLibrarySettings(data);
+        setEditSettingsForm(data);
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/settings/library', {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem('kv_library_token')}`,
+        },
+        body: JSON.stringify(editSettingsForm)
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setLibrarySettings(updated);
+        setIsEditingSettings(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff", "events", "career-guidance"] as const;
   type TabType = typeof validTabs[number];
 
@@ -101,7 +140,7 @@ export default function App() {
       const newUrl = `${window.location.pathname}?tab=${tab}${window.location.hash}`;
       window.history.pushState({ tab }, "", newUrl);
     } catch (e) {}
-  };
+    };
 
   useEffect(() => {
     const handlePopState = () => {
@@ -638,26 +677,42 @@ export default function App() {
       .catch((err) => console.error("Error deleting post:", err));
   };
 
+
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+
   const handleEditPost = (id: string) => {
     const post = socialPosts.find(p => p.id === id);
-    if (!post) return;
-    const newContent = prompt("Edit your review:", post.content);
-    if (newContent === null) return; // cancelled
-    
-    fetch(`/api/social/posts/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: newContent }),
-    })
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error("Failed to edit post");
-      })
-      .then((updatedPost) => {
-        setSocialPosts((prev) => prev.map((p) => (p.id === id ? updatedPost : p)));
-      })
-      .catch((err) => console.error("Error editing post:", err));
+    if (post) {
+      setEditingPostId(id);
+      setEditContent(post.content);
+    }
   };
+
+  const handleSaveEdit = async (id: string) => {
+    try {
+      const response = await fetch(`/api/social/posts/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${currentUser?.token}`,
+        },
+        body: JSON.stringify({ content: editContent }),
+      });
+      if (!response.ok) throw new Error("Failed to update post");
+      const updatedPost = await response.json();
+      setSocialPosts((prev) => prev.map((p) => (p.id === id ? updatedPost : p)));
+      setEditingPostId(null);
+      setEditContent("");
+    } catch (err) {
+      setSocialAlertMessage("Error updating post. Try again.");
+      setTimeout(() => setSocialAlertMessage(""), 3000);
+    }
+  };
+
+  
+  const [reviewFilter, setReviewFilter] = useState<number | null>(null);
+  const filteredPosts = reviewFilter ? socialPosts.filter(p => p.rating === reviewFilter) : socialPosts;
 
   const handleLikePost = (postId: string) => {
     const isLiked = !!postLikesMap[postId];
@@ -818,9 +873,8 @@ export default function App() {
         <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center bg-white dark:bg-slate-900 overflow-hidden border border-slate-700/50 shadow flex-shrink-0">
             <img
-              src={kvLogo}
-              alt="PM Shri KV IIT Powai Library Logo"
-              title="PM Shri KV IIT Powai Library"
+              src={librarySettings.logoUrl || kvLogo}
+              alt="Library Logo"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
             />
@@ -828,12 +882,16 @@ export default function App() {
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
               <span className="text-[9px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-sans tracking-wide whitespace-nowrap flex-shrink-0">
-                <span className="md:hidden">PM SHRI</span>
-                <span className="hidden md:inline">PM SHRI SCHOOL</span>
+                <span>{librarySettings.name}</span>
               </span>
               <span className="hidden sm:inline text-[10px] md:text-[11px] font-mono text-cyan-400 whitespace-nowrap truncate min-w-0">
-                IIT POWAI SECTOR
+                {librarySettings.tag}
               </span>
+              {currentUser?.role === "admin" && (
+                <button onClick={() => setIsEditingSettings(true)} className="ml-2 text-xs text-amber-500 hover:text-amber-300">
+                   <Wrench className="w-3 h-3" />
+                </button>
+              )}
             </div>
             <h1 className="text-xs sm:text-sm md:text-lg font-bold leading-none tracking-tight text-white mt-1 truncate">
               KV IIT Powai Digital Library Hub
@@ -2363,355 +2421,152 @@ export default function App() {
                     )}
                   </AnimatePresence>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 pb-2">
-                    {/* Handle 1: Instagram */}
-                    <div className="p-4 bg-gradient-to-br from-pink-50/50 to-orange-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-4 group/item">
+                  <div className="grid grid-cols-1 gap-3 pb-2">
+                    <a href="https://www.instagram.com/pmshri_kviitpowai_lib/" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-br from-pink-50/50 to-orange-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center">
                           <Instagram className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              Instagram Handle
-                            </span>
-                            <span
-                              className="w-1.5 h-1.5 rounded-full bg-emerald-500"
-                              title="Verified link"
-                            ></span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            @pmshri_kviitpowai_lib
-                          </span>
-                          <span className="text-[10px] text-indigo-900/60 font-medium">
-                            1,420 Active Readers
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">Instagram</span>
+                          <span className="text-[10px] text-slate-500">Official Handle</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() =>
-                          handleToggleFollow(
-                            "Instagram",
-                            "@pmshri_kviitpowai_lib",
-                          )
-                        }
-                        className={`w-full py-2 rounded-xl text-[11px] font-semibold transition-all border ${
-                          followedHandles["Instagram"]
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                            : "bg-slate-900 hover:bg-slate-800 border-transparent text-white"
-                        }`}
-                      >
-                        {followedHandles["Instagram"] ? "Following" : "Follow"}
-                      </button>
-                    </div>
-
-                    {/* Handle 2: YouTube Channel */}
-                    <div className="p-4 bg-gradient-to-br from-red-50/50 to-rose-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-4">
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
+                    
+                    <a href="https://www.youtube.com/@LibraryPoint1" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-br from-red-50/50 to-rose-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
                           <Youtube className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              YouTube Channel
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          </div>
-                          <a
-                            href="https://www.youtube.com/@LibraryPoint1"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] text-red-600 font-bold hover:underline flex items-center gap-1 transition-colors mt-0.5"
-                            title="Visit Library Point YouTube Channel"
-                          >
-                            Library Point{" "}
-                            <ExternalLink className="w-2.5 h-2.5 inline text-red-500" />
-                          </a>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">YouTube</span>
+                          <span className="text-[10px] text-slate-500">Library Point</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() =>
-                          handleToggleFollow("YouTube", "Library Point")
-                        }
-                        className={`w-full py-2 rounded-xl text-[11px] font-semibold transition-all border ${
-                          followedHandles["YouTube"]
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                            : "bg-slate-900 hover:bg-slate-800 border-transparent text-white"
-                        }`}
-                      >
-                        {followedHandles["YouTube"]
-                          ? "Subscribed"
-                          : "Subscribe"}
-                      </button>
-                    </div>
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
 
-                    {/* Handle 3: Twitter / X */}
-                    <div className="p-4 bg-gradient-to-br from-sky-50/50 to-blue-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-4">
+                    <a href="https://x.com/KVIITPowaiLib" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-br from-sky-50/50 to-blue-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center">
                           <Twitter className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              X Desk Feed
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            @KVIITPowaiLib
-                          </span>
-                          <span className="text-[10px] text-indigo-900/60 font-medium">
-                            412 Followers
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">X / Twitter</span>
+                          <span className="text-[10px] text-slate-500">Desk Feed</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() =>
-                          handleToggleFollow("X", "@KVIITPowaiLib")
-                        }
-                        className={`w-full py-2 rounded-xl text-[11px] font-semibold transition-all border ${
-                          followedHandles["X"]
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                            : "bg-slate-900 hover:bg-slate-800 border-transparent text-white"
-                        }`}
-                      >
-                        {followedHandles["X"] ? "Following" : "Follow"}
-                      </button>
-                    </div>
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
 
-                    {/* Handle 4: Facebook Community */}
-                    <div className="p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-4">
+                    <a href="https://www.facebook.com/groups/712396956270837/" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-br from-blue-50/50 to-indigo-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
                           <Facebook className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              Facebook Club
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            KV IIT Powai Readers Group
-                          </span>
-                          <span className="text-[10px] text-indigo-900/60 font-medium">
-                            2,300 Members
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">Facebook</span>
+                          <span className="text-[10px] text-slate-500">Readers Group</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() =>
-                          handleToggleFollow("Facebook", "KV IIT Powai Readers")
-                        }
-                        className={`w-full py-2 rounded-xl text-[11px] font-semibold transition-all border ${
-                          followedHandles["Facebook"]
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                            : "bg-slate-900 hover:bg-slate-800 border-transparent text-white"
-                        }`}
-                      >
-                        {followedHandles["Facebook"] ? "Joined" : "Join"}
-                      </button>
-                    </div>
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
 
-                    {/* Handle 5: Padlet Book Review Submission */}
-                    <div className="p-4 bg-gradient-to-br from-amber-50/50 to-orange-50/20 border border-amber-200/60 dark:border-amber-900/40 rounded-2xl flex flex-col justify-between gap-4 col-span-1 md:col-span-2 lg:col-span-2">
+                    <a href="https://padlet.com/ashishkumar_librarian/kv-iit-powai-library-book-review-s9f81r6e8c7rnh1p" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-br from-yellow-50/50 to-amber-50/20 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
-                          <BookOpenCheck className="w-5 h-5" />
+                        <div className="w-10 h-10 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center">
+                          <BookOpen className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              Internal Book Review Portal
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Submission Desk"></span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            KV IIT Powai Virtual Library
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">Padlet</span>
+                          <span className="text-[10px] text-slate-500">Book Reviews</span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => document.getElementById("review-input")?.focus()}
-                        className="w-full justify-center py-2 rounded-xl text-[11px] font-semibold transition-all bg-red-800 hover:bg-red-900 text-white flex items-center gap-1 shadow flex-shrink-0"
-                      >
-                        Write Review Here <ExternalLink className="w-3 h-3" />
-                      </button>
-                    </div>
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
 
-                    {/* Handle 6: Podcast of KV IIT LIBRARY */}
-                    <div className="p-4 bg-gradient-to-r from-emerald-50/50 to-teal-50/20 border border-emerald-200/60 rounded-2xl flex items-center justify-between gap-3">
+                    <a href="https://creators.spotify.com/pod/profile/ashish-kumar496/" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-r from-emerald-50/50 to-teal-50/20 border border-emerald-200/60 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
                           <Radio className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              Podcast of KV IIT LIBRARY
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Podcast Desk"></span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            Spotify Creators Profile
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">Podcast</span>
+                          <span className="text-[10px] text-slate-500">KV IIT LIBRARY</span>
                         </div>
                       </div>
-                      <a
-                        href="https://creators.spotify.com/pod/profile/ashish-kumar496/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-emerald-700 hover:bg-emerald-800 text-white flex items-center gap-1 shadow flex-shrink-0"
-                      >
-                        Listen Now <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
 
-                    {/* Handle 7: LinkTr.ee */}
-                    <div className="p-4 bg-gradient-to-r from-lime-50/50 to-green-50/20 border border-lime-200/60 rounded-2xl flex items-center justify-between gap-3">
+                    <a href="https://linktr.ee/kviitpowailibrary" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-r from-emerald-50/50 to-teal-50/20 border border-emerald-200/60 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-lime-100 text-lime-800 flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
                           <Share2 className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              LinkTr.ee
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Link Hub"></span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            KV IIT Powai Universal Links
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">LinkTr.ee</span>
+                          <span className="text-[10px] text-slate-500">Universal Links</span>
                         </div>
                       </div>
-                      <a
-                        href="https://linktr.ee/librarykviitpowai"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-lime-700 hover:bg-lime-800 text-white flex items-center gap-1 shadow flex-shrink-0"
-                      >
-                        Explore Links <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
 
-                    {/* Handle 8: Sound Library */}
-                    <div className="p-4 bg-gradient-to-r from-orange-50/50 to-amber-50/20 border border-orange-200/60 rounded-2xl flex items-center justify-between gap-3">
+                    <a href="https://soundcloud.com/pmshri-kv-iit-library" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-r from-orange-50/50 to-red-50/20 border border-orange-200/60 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0">
-                          <Volume2 className="w-5 h-5" />
+                        <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center">
+                          <Music className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              Sound Library
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Sound Hub"></span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            SoundCloud Audio Collection
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">Soundcloud</span>
+                          <span className="text-[10px] text-slate-500">Audio Library</span>
                         </div>
                       </div>
-                      <a
-                        href="https://soundcloud.com/ashish-kumar-979097077?utm_campaign=social_sharing&utm_medium=text&utm_source=clipboard"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-1 shadow flex-shrink-0"
-                      >
-                        Listen Now <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
 
-                    {/* Handle 9: Wakelet */}
-                    <div className="p-4 bg-gradient-to-r from-blue-50/50 to-indigo-50/20 border border-blue-200/60 rounded-2xl flex items-center justify-between gap-3">
+                    <a href="https://wakelet.com/@PMSHRIKVIITPowaiLibrary" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-r from-blue-50/50 to-cyan-50/20 border border-blue-200/60 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
-                          <Layers className="w-5 h-5" />
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center">
+                          <Bookmark className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              Wakelet
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Wakelet Profile"></span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            Curated Resources
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">Wakelet</span>
+                          <span className="text-[10px] text-slate-500">Curated Collections</span>
                         </div>
                       </div>
-                      <a
-                        href="https://wakelet.com/@kviitpowaivirtuallibrary"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 shadow flex-shrink-0"
-                      >
-                        Explore <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
 
-                    {/* Handle 10: Linkedin */}
-                    <div className="p-4 bg-gradient-to-r from-sky-50/50 to-blue-50/20 border border-sky-200/60 rounded-2xl flex items-center justify-between gap-3">
+                    <a href="https://www.linkedin.com/in/p-m-shri-k-v-iit-powai-library-b6a12a326/" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-r from-blue-50/50 to-indigo-50/20 border border-blue-200/60 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center">
                           <Linkedin className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              Linkedin
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Linkedin Profile"></span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            Professional Network
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">LinkedIn</span>
+                          <span className="text-[10px] text-slate-500">Professional Network</span>
                         </div>
                       </div>
-                      <a
-                        href="https://www.linkedin.com/in/ashish-kumar-87678455/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-sky-700 hover:bg-sky-800 text-white flex items-center gap-1 shadow flex-shrink-0"
-                      >
-                        Connect <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
+                      <span className="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Visit <ExternalLink className="w-3 h-3" /></span>
+                    </a>
 
-                    {/* Handle 11: WEB OPAC */}
-                    <div className="p-4 bg-gradient-to-r from-purple-50/50 to-fuchsia-50/20 border border-purple-200/60 rounded-2xl flex items-center justify-between gap-3">
+                    <a href="https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3" target="_blank" rel="noopener noreferrer" className="p-4 bg-gradient-to-r from-purple-50/50 to-fuchsia-50/20 border border-purple-200/60 rounded-2xl flex items-center justify-between gap-4 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0">
                           <Search className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                              WEB OPAC
-                            </span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Active Catalog Search"></span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 block">
-                            Online Public Access Catalog
-                          </span>
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 block">WEB OPAC</span>
+                          <span className="text-[10px] text-slate-500">Catalog Search</span>
                         </div>
                       </div>
-                      <a
-                        href="https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 shadow flex-shrink-0"
-                      >
-                        Search Catalog <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
+                      <span className="px-3 py-1.5 bg-purple-600 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1">Search <ExternalLink className="w-3 h-3" /></span>
+                    </a>
                   </div>
                 </div>
               </div>
-
               {/* Simulated Feed Posts */}
               <div className="lg:col-span-7 space-y-6">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -2724,7 +2579,17 @@ export default function App() {
                 </div>
 
                 <div className="space-y-4">
-                  {socialPosts.length === 0 ? (
+                  
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <button onClick={() => setReviewFilter(null)} className={`px-3 py-1.5 rounded-full text-xs font-bold ${!reviewFilter ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'} transition-colors`}>All Reviews</button>
+                        {[5,4,3,2,1].map(stars => (
+                          <button key={stars} onClick={() => setReviewFilter(stars)} className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 ${reviewFilter === stars ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'} transition-colors`}>
+                            {stars} <span className="text-amber-500">★</span>
+                          </button>
+                        ))}
+                      </div>
+
+                    {filteredPosts.length === 0 ? (
                     <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 text-center space-y-4 shadow-sm">
                       <div className="w-16 h-16 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-400 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
                         ✍️
@@ -2741,7 +2606,7 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    socialPosts.map((post) => {
+                    filteredPosts.map((post) => {
                       const hasLiked = !!postLikesMap[post.id];
                       const commInput = commentInputMap[post.id] || "";
                       const commsList = postCommentsMap[post.id] || [];
@@ -2803,9 +2668,23 @@ export default function App() {
                               )}
                             </div>
 
-                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                              {post.content}
-                            </p>
+                            {editingPostId === post.id ? (
+                              <div className="space-y-2 mt-2">
+                                <textarea
+                                  value={editContent}
+                                  onChange={(e) => setEditContent(e.target.value)}
+                                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-sky-500 min-h-[80px]"
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <button onClick={() => setEditingPostId(null)} className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700">Cancel</button>
+                                  <button onClick={() => handleSaveEdit(post.id)} className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition-colors shadow">Save Changes</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                {post.content}
+                              </p>
+                            )}
                           </div>
 
                           {/* Hashtag clouds */}
@@ -3001,6 +2880,50 @@ export default function App() {
         </div>
       </footer>
 
+      
+      {/* Settings Modal */}
+      {isEditingSettings && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200 dark:border-slate-700">
+            <h2 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">Edit Library Header Settings</h2>
+            <form onSubmit={handleSaveSettings} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+                <input 
+                  type="text" 
+                  value={editSettingsForm.name} 
+                  onChange={e => setEditSettingsForm({...editSettingsForm, name: e.target.value})} 
+                  className="w-full border dark:border-slate-700 rounded-lg p-2 dark:bg-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tagline / Sector</label>
+                <input 
+                  type="text" 
+                  value={editSettingsForm.tag} 
+                  onChange={e => setEditSettingsForm({...editSettingsForm, tag: e.target.value})} 
+                  className="w-full border dark:border-slate-700 rounded-lg p-2 dark:bg-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Logo Image URL (Optional)</label>
+                <input 
+                  type="text" 
+                  value={editSettingsForm.logoUrl} 
+                  onChange={e => setEditSettingsForm({...editSettingsForm, logoUrl: e.target.value})} 
+                  className="w-full border dark:border-slate-700 rounded-lg p-2 dark:bg-slate-800"
+                  placeholder="https://..."
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <button type="button" onClick={() => setIsEditingSettings(false)} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 rounded-lg">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg">Save Settings</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Auth Modal Portal */}
       <AuthModal
         isOpen={isAuthOpen}
@@ -3010,3 +2933,4 @@ export default function App() {
     </div>
   );
 }
+
