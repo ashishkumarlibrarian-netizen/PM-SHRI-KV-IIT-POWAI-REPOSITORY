@@ -14,7 +14,7 @@ export default function ProfileTab({ currentUser, onUpdate }: { currentUser: any
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${currentUser?.token}`,
+          Authorization: `Bearer ${localStorage.getItem("kv_library_token")}`,
         },
         body: JSON.stringify({ fullName: name, password, avatarUrl })
       });

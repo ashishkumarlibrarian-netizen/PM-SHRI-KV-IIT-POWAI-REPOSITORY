@@ -321,7 +321,7 @@ export default function App() {
   const [studentClass, setStudentClass] = useState("Class V-A");
   const [postLikesMap, setPostLikesMap] = useState<Record<string, boolean>>({});
   const [postCommentsMap, setPostCommentsMap] = useState<
-    Record<string, string[]>
+    Record<string, any[]>
   >({});
   const [commentInputMap, setCommentInputMap] = useState<
     Record<string, string>
@@ -361,7 +361,7 @@ export default function App() {
       .then((data: any[]) => {
         setSocialPosts(data);
         // Populate comment maps
-        const commentsMap: Record<string, string[]> = {};
+        const commentsMap: Record<string, any[]> = {};
         data.forEach((post) => {
           if (post.comments) {
             commentsMap[post.id] = post.comments;
@@ -744,35 +744,65 @@ export default function App() {
     });
   };
 
-  const handleAddComment = (postId: string) => {
+    const handleAddComment = async (postId: string) => {
     const commentText = commentInputMap[postId] || "";
     if (!commentText.trim()) return;
 
-    const key = postId;
-    const existingComments = postCommentsMap[key] || [];
-    const formattedComment = `${studentName}: ${commentText.trim()}`;
-    const updatedComments = [...existingComments, formattedComment];
+    const authorName = currentUser ? currentUser.fullName : "Guest Reader";
+    const authorAvatar = currentUser ? currentUser.avatarUrl : "";
 
-    // Immediate UI response
-    setPostCommentsMap((prev) => ({ ...prev, [key]: updatedComments }));
-    setCommentInputMap((prev) => ({ ...prev, [key]: "" }));
-    setSocialPosts((prev) =>
-      prev.map((p) => {
-        if (p.id === postId) {
-          return { ...p, commentsCount: updatedComments.length };
-        }
-        return p;
-      }),
-    );
-
-    // Save to database
-    fetch(`/api/social/posts/${postId}/comment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comment: formattedComment }),
-    }).catch((err) => {
-      console.error("Failed to save comment to server:", err);
+    setCommentInputMap((prev) => {
+      const copy = { ...prev };
+      delete copy[postId];
+      return copy;
     });
+
+    try {
+      const res = await fetch(`/api/social/posts/${postId}/comment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: commentText.trim(), authorName, authorAvatar }),
+      });
+      if (res.ok) {
+        const updatedPost = await res.json();
+        setPostCommentsMap((prev) => ({ ...prev, [postId]: updatedPost.comments || [] }));
+        setSocialPosts((prev) => prev.map((p) => (p.id === postId ? updatedPost : p)));
+      }
+    } catch (err) {
+      console.error("Failed to save comment to server:", err);
+    }
+  };
+
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    try {
+      const res = await fetch(`/api/social/posts/${postId}/comment/${commentId}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        const updatedPost = await res.json();
+        setPostCommentsMap((prev) => ({ ...prev, [postId]: updatedPost.comments || [] }));
+        setSocialPosts((prev) => prev.map((p) => (p.id === postId ? updatedPost : p)));
+      }
+    } catch (err) {
+      console.error("Failed to delete comment:", err);
+    }
+  };
+
+  const handleEditComment = async (postId: string, commentId: string, newText: string) => {
+    try {
+      const res = await fetch(`/api/social/posts/${postId}/comment/${commentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newText })
+      });
+      if (res.ok) {
+        const updatedPost = await res.json();
+        setPostCommentsMap((prev) => ({ ...prev, [postId]: updatedPost.comments || [] }));
+        setSocialPosts((prev) => prev.map((p) => (p.id === postId ? updatedPost : p)));
+      }
+    } catch (err) {
+      console.error("Failed to edit comment:", err);
+    }
   };
 
   // Toggle official social platform tracking follow status
@@ -1026,13 +1056,25 @@ export default function App() {
         <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
           {currentUser ? (
             <div className="flex items-center gap-2 md:gap-3">
-              <div className="hidden md:flex flex-col text-right animate-fade-in">
-                <span className="text-xs font-bold text-amber-400">
-                  {currentUser.fullName}
-                </span>
-                <span className="text-[10px] text-emerald-400 font-mono font-semibold">
-                  ✓ Registered Student
-                </span>
+              <div 
+                className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" 
+                onClick={() => setActiveTabState("profile")}
+              >
+                <div className="hidden md:flex flex-col text-right animate-fade-in">
+                  <span className="text-xs font-bold text-amber-400">
+                    {currentUser.fullName}
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                    ✓ Registered Student
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-700 flex-shrink-0 bg-slate-800 flex items-center justify-center text-slate-400">
+                  {currentUser?.avatarUrl ? (
+                    <img src={currentUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-4 h-4" />
+                  )}
+                </div>
               </div>
               <button
                 onClick={handleLogout}
@@ -1043,14 +1085,22 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <div className="hidden md:flex flex-col text-right">
-                <span className="text-xs font-bold text-amber-500 font-sans">
-                  Guest Scholar
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  Offline session
-                </span>
+            <div className="flex items-center gap-2 md:gap-3">
+              <div 
+                className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => setIsAuthOpen(true)}
+              >
+                <div className="hidden md:flex flex-col text-right">
+                  <span className="text-xs font-bold text-amber-500 font-sans">
+                    Guest Scholar
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Offline session
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-700 flex-shrink-0 bg-slate-800 flex items-center justify-center text-slate-400">
+                  <User className="w-4 h-4" />
+                </div>
               </div>
               <button
                 onClick={() => setIsAuthOpen(true)}
@@ -2747,14 +2797,65 @@ export default function App() {
                             {/* Comments List history */}
                             {commsList.length > 0 && (
                               <div className="space-y-2">
-                                {commsList.map((commText, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="text-xs p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 leading-relaxed text-slate-600 dark:text-slate-300"
-                                  >
-                                    {commText}
-                                  </div>
-                                ))}
+                                {commsList.map((commObj: any, idx: number) => {
+                                  const isString = typeof commObj === 'string';
+                                  const cId = isString ? `${idx}` : commObj.id;
+                                  const cText = isString ? commObj : commObj.text;
+                                  const cAuthor = isString ? commObj.split(':')[0] : (commObj.authorName || 'User');
+                                  const cAvatar = isString ? '' : commObj.authorAvatar;
+                                  const isMyComment = currentUser && currentUser.fullName === cAuthor;
+                                  
+                                  let displayText = cText;
+                                  if (isString && cText.includes(':')) {
+                                    displayText = cText.split(':').slice(1).join(':').trim();
+                                  }
+
+                                  return (
+                                    <div
+                                      key={cId}
+                                      className="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800"
+                                    >
+                                      {cAvatar ? (
+                                        <img src={cAvatar} alt={cAuthor} className="w-6 h-6 rounded-full object-cover" />
+                                      ) : (
+                                        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                          {cAuthor.charAt(0)}
+                                        </div>
+                                      )}
+                                      <div className="flex-1">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{cAuthor}</span>
+                                          {!isString && isMyComment && (
+                                            <div className="flex items-center gap-2">
+                                              <button 
+                                                onClick={() => {
+                                                  const newText = window.prompt("Edit your comment:", cText);
+                                                  if (newText && newText !== cText) {
+                                                    handleEditComment(post.id, cId, newText);
+                                                  }
+                                                }}
+                                                className="text-[10px] text-blue-500 hover:underline"
+                                              >
+                                                Edit
+                                              </button>
+                                              <button 
+                                                onClick={() => {
+                                                  if (window.confirm("Delete this comment?")) {
+                                                    handleDeleteComment(post.id, cId);
+                                                  }
+                                                }}
+                                                className="text-[10px] text-red-500 hover:underline"
+                                              >
+                                                Delete
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">{displayText}</p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
 
@@ -2834,7 +2935,7 @@ export default function App() {
               exit={{ opacity: 0, y: -15, scale: 0.98 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
-              <StaffTab />
+              <StaffTab currentUser={currentUser} />
             </motion.div>
           )}
 

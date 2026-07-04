@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+const fs = require('fs');
+
+const code = `import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Users, BookHeart, User, Edit2, Plus, Trash2, Save, X, Camera } from "lucide-react";
 
@@ -32,7 +34,7 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("kv_library_token")}`
+          "Authorization": \\\`Bearer \\\${localStorage.getItem("kv_library_token")}\\\`
         },
         body: JSON.stringify(editData)
       });
@@ -92,7 +94,7 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
                 onClick={() => {
                   const newData = { ...editData };
                   newData[listType].push({
-                    id: Date.now().toString() + Math.random(),
+                    id: Date.now().toString(),
                     name: "New Member",
                     role: "Role",
                     contribution: "Description...",
@@ -127,7 +129,7 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
                     <div><label className="text-xs font-bold text-slate-500">Color Theme (Tailwind Classes)</label><input type="text" value={member.avatarColor} onChange={(e) => { const n={...editData}; n[listType][idx].avatarColor = e.target.value; setEditData(n); }} className="w-full border rounded p-2 dark:bg-slate-800 text-sm" /></div>
                     <div className="md:col-span-2"><label className="text-xs font-bold text-slate-500">Description / Contribution</label><textarea value={member.contribution} onChange={(e) => { const n={...editData}; n[listType][idx].contribution = e.target.value; setEditData(n); }} className="w-full border rounded p-2 dark:bg-slate-800 text-sm h-20" /></div>
                   </div>
-                  <button onClick={() => { const n={...editData}; n[listType].splice(idx, 1); setEditData(n); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0 mt-4 md:mt-0">
+                  <button onClick={() => { const n={...editData}; n[listType].splice(idx, 1); setEditData(n); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
@@ -177,7 +179,7 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
             key={staff.id || idx}
             className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-lg hover:shadow-xl transition-shadow group flex flex-col md:flex-row gap-8 items-center w-full max-w-4xl"
           >
-            <div className={`w-40 h-40 md:w-48 md:h-48 rounded-3xl flex items-center justify-center flex-shrink-0 overflow-hidden shadow-inner ${staff.avatarColor || 'bg-slate-100 text-slate-400'}`}>
+            <div className={\`w-40 h-40 md:w-48 md:h-48 rounded-3xl flex items-center justify-center flex-shrink-0 overflow-hidden shadow-inner \${staff.avatarColor || 'bg-slate-100 text-slate-400'}\`}>
               {staff.image ? (
                 <img src={staff.image} alt={staff.name} className="w-full h-full object-cover" />
               ) : (
@@ -200,7 +202,7 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
               </p>
               
               <div className="flex items-center justify-center md:justify-start gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <div className={`p-2 rounded-xl ${staff.avatarColor || 'bg-slate-100 text-slate-400'} bg-opacity-20`}>
+                <div className={\`p-2 rounded-xl \${staff.avatarColor || 'bg-slate-100'} bg-opacity-20\`}>
                   <BookHeart className="w-6 h-6" />
                 </div>
                 <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -233,7 +235,7 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
             key={staff.id || idx}
             className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow group flex flex-col sm:flex-row gap-6 items-start"
           >
-            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden ${staff.avatarColor || 'bg-slate-100 text-slate-400'}`}>
+            <div className={\`w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden \${staff.avatarColor || 'bg-slate-100 text-slate-400'}\`}>
               {staff.image ? (
                 <img src={staff.image} alt={staff.name} className="w-full h-full object-cover" />
               ) : (
@@ -256,7 +258,7 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
               </p>
               
               <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <div className={`p-1.5 rounded-lg ${staff.avatarColor || 'bg-slate-100 text-slate-400'} bg-opacity-20`}>
+                <div className={\`p-1.5 rounded-lg \${staff.avatarColor || 'bg-slate-100'} bg-opacity-20\`}>
                   <BookHeart className="w-5 h-5" />
                 </div>
                 <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -280,3 +282,6 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/components/StaffTab.tsx', code);
