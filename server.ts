@@ -27,6 +27,7 @@ interface User {
   passwordHash: string;
   createdAt: string;
   role?: string;
+  avatarUrl?: string;
 }
 
 class SessionStore {
@@ -149,6 +150,97 @@ function getAI(): GoogleGenAI {
 
 // ----------------------------------------------------------------------------
 // API Routes
+
+const defaultLibrarySettings = {
+  logoUrl: "",
+  name: "PM Shri Kendriya Vidyalaya",
+  tag: "IIT Powai Library",
+  headerTitle: "KV IIT Powai Digital Library Hub"
+};
+
+
+app.put("/api/user/profile", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const token = authHeader.split(" ")[1];
+  const session = sessions.get(token);
+  if (!session || session.expires < Date.now()) {
+    if (session) sessions.delete(token); // clean up expired
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+  
+  const users = readUsers();
+  const userIndex = users.findIndex(u => u.id === session.userId);
+
+  if (userIndex === -1) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  const { fullName, password, avatarUrl } = req.body;
+  
+  if (fullName) users[userIndex].fullName = fullName;
+  if (avatarUrl !== undefined) users[userIndex].avatarUrl = avatarUrl;
+  if (password) users[userIndex].passwordHash = password; // simplistic for this exercise
+
+  writeUsers(users);
+  
+  const updatedUser = users[userIndex];
+  res.json({
+    id: updatedUser.id,
+    email: updatedUser.email,
+    fullName: updatedUser.fullName,
+    role: updatedUser.role,
+    className: updatedUser.className,
+    avatarUrl: updatedUser.avatarUrl
+  });
+});
+
+app.get("/api/settings/library", (req, res) => {
+  try {
+    const settings = readSettings();
+    res.json(settings.library || defaultLibrarySettings);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load library settings" });
+  }
+});
+
+app.put("/api/settings/library", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const token = authHeader.split(" ")[1];
+  const session = sessions.get(token);
+  if (!session || session.expires < Date.now()) {
+    if (session) sessions.delete(token); // clean up expired
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+  const users = readUsers();
+  const user = users.find(u => u.id === session.userId);
+
+  if (!user || user.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  try {
+    const settings = readSettings();
+    const librarySettings = settings.library || { ...defaultLibrarySettings };
+    
+    const { logoUrl, name, tag, headerTitle } = req.body;
+    if (logoUrl !== undefined) librarySettings.logoUrl = logoUrl;
+    if (name !== undefined) librarySettings.name = name;
+    if (tag !== undefined) librarySettings.tag = tag;
+    if (headerTitle !== undefined) librarySettings.headerTitle = headerTitle;
+    
+    settings.library = librarySettings;
+    writeSettings(settings);
+    res.json(librarySettings);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to save library settings" });
+  }
+});
+
 // ----------------------------------------------------------------------------
 
 // 1. Health check Endpoint

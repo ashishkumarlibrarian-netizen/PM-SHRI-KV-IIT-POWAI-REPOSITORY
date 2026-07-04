@@ -51,6 +51,7 @@ import {
   Wrench
 , Music } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
+import ProfileTab from "./components/ProfileTab";
 import MenuTab from "./components/MenuTab";
 import MagazineTab from "./components/MagazineTab";
 import StaffTab from "./components/StaffTab";
@@ -75,10 +76,11 @@ export default function App() {
   const [librarySettings, setLibrarySettings] = useState({
     logoUrl: "",
     name: "PM SHRI SCHOOL",
-    tag: "IIT POWAI SECTOR"
+    tag: "IIT POWAI SECTOR",
+    headerTitle: "KV IIT Powai Digital Library Hub"
   });
   const [isEditingSettings, setIsEditingSettings] = useState(false);
-  const [editSettingsForm, setEditSettingsForm] = useState({ logoUrl: "", name: "", tag: "" });
+  const [editSettingsForm, setEditSettingsForm] = useState({ logoUrl: "", name: "", tag: "", headerTitle: "" });
 
   useEffect(() => {
     fetch('/api/settings/library')
@@ -105,13 +107,17 @@ export default function App() {
         const updated = await response.json();
         setLibrarySettings(updated);
         setIsEditingSettings(false);
+      } else {
+        const errText = await response.text();
+        console.error("Failed to save settings:", errText);
+        alert("Failed to save settings: " + errText);
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff", "events", "career-guidance"] as const;
+  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff", "events", "career-guidance", "profile"] as const;
   type TabType = typeof validTabs[number];
 
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
@@ -894,7 +900,7 @@ export default function App() {
               )}
             </div>
             <h1 className="text-xs sm:text-sm md:text-lg font-bold leading-none tracking-tight text-white mt-1 truncate">
-              KV IIT Powai Digital Library Hub
+              {librarySettings.headerTitle || "KV IIT Powai Digital Library Hub"}
             </h1>
           </div>
         </div>
@@ -2618,13 +2624,27 @@ export default function App() {
                         >
                           {/* Header details */}
                           <div className="flex justify-between items-start">
-                            <div className="flex gap-3">
-                              <div className="w-10 h-10 rounded-full bg-red-100/50 text-red-800 font-bold flex items-center justify-center uppercase">
-                                {post.studentName.slice(0, 2)}
+                            <div className="flex gap-3 items-center">
+                              <div 
+                                className="w-10 h-10 rounded-full bg-red-100/50 text-red-800 font-bold flex items-center justify-center uppercase cursor-pointer hover:ring-2 hover:ring-amber-500 transition-all overflow-hidden"
+                                onClick={() => {
+                                  if (currentUser) setActiveTab("profile");
+                                }}
+                              >
+                                {post.studentName === currentUser?.fullName && currentUser?.avatarUrl ? (
+                                  <img src={currentUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                ) : (
+                                  post.studentName.slice(0, 2)
+                                )}
                               </div>
                               <div>
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">
+                                  <h4 
+                                    className="font-bold text-xs text-slate-800 dark:text-slate-100 cursor-pointer hover:text-amber-600 transition-colors"
+                                    onClick={() => {
+                                      if (currentUser) setActiveTab("profile");
+                                    }}
+                                  >
                                     {post.studentName}
                                   </h4>
                                 </div>
@@ -2769,7 +2789,20 @@ export default function App() {
             </motion.div>
           )}
 
+          
+          {activeTab === "profile" && (
+            <motion.div
+              key="profile"
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <ProfileTab currentUser={currentUser} onUpdate={(u) => { setCurrentUser(u); setStudentName(u.fullName); localStorage.setItem("kv_library_user", JSON.stringify(u)); }} />
+            </motion.div>
+          )}
           {activeTab === "menu" && (
+
             <motion.div
               key="menu"
               initial={{ opacity: 0, y: 15, scale: 0.98 }}
@@ -2836,7 +2869,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="text-center md:text-left space-y-1">
             <h4 className="text-white font-bold leading-none">
-              PM Shri Kendriya Vidyalaya IIT Powai Sector
+              {librarySettings.name} {librarySettings.tag}
             </h4>
             <p className="text-[10px] text-slate-500">
               Autonomous body under Ministry of Education, Government of India
@@ -2906,14 +2939,38 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Logo Image URL (Optional)</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Header Title</label>
                 <input 
                   type="text" 
-                  value={editSettingsForm.logoUrl} 
-                  onChange={e => setEditSettingsForm({...editSettingsForm, logoUrl: e.target.value})} 
+                  value={editSettingsForm.headerTitle} 
+                  onChange={e => setEditSettingsForm({...editSettingsForm, headerTitle: e.target.value})} 
                   className="w-full border dark:border-slate-700 rounded-lg p-2 dark:bg-slate-800"
-                  placeholder="https://..."
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Logo Image (Optional)</label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        if (event.target && typeof event.target.result === "string") {
+                          setEditSettingsForm({...editSettingsForm, logoUrl: event.target.result});
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }} 
+                  className="w-full border dark:border-slate-700 rounded-lg p-2 dark:bg-slate-800"
+                />
+                {editSettingsForm.logoUrl && (
+                   <div className="mt-2 w-16 h-16 rounded-lg overflow-hidden border border-slate-700">
+                      <img src={editSettingsForm.logoUrl} alt="Logo preview" className="w-full h-full object-cover" />
+                   </div>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <button type="button" onClick={() => setIsEditingSettings(false)} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 rounded-lg">Cancel</button>

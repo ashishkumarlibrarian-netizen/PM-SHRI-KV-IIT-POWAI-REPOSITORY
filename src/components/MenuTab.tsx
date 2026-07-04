@@ -39,7 +39,7 @@ export default function MenuTab() {
     {
       title: "Digital Libraries & E-Resources",
       links: [
-        { title: "National Digital Library of India (NDLI)", icon: <Database className="w-5 h-5" />, url: "https://ndl.iitkgp.ac.in/" },
+        { title: "National Digital Library of India (NDLI)", icon: <Database className="w-5 h-5" />, url: "https://ndl.education.gov.in/home" },
         { title: "DIKSHA E-Learning Platform", icon: <Video className="w-5 h-5" />, url: "https://diksha.gov.in/" },
         { title: "NCERT Official Textbooks", icon: <BookOpen className="w-5 h-5" />, url: "https://ncert.nic.in/textbook.php" },
         { title: "National Repository of Open Educational Resources (NROER)", icon: <Database className="w-5 h-5" />, url: "https://www.gnowledge.org/projects/nroer.html" },
