@@ -56,6 +56,7 @@ import MenuTab from "./components/MenuTab";
 import MagazineTab from "./components/MagazineTab";
 import StaffTab from "./components/StaffTab";
 import EventsTab from "./components/EventsTab";
+import QuizCornerTab from "./components/QuizCornerTab";
 import ReadersClubTab from "./components/ReadersClubTab";
 import {
   StoryChapter,
@@ -117,7 +118,7 @@ export default function App() {
     }
   };
 
-  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff", "events", "career-guidance", "profile"] as const;
+  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff", "events", "quiz-corner", "career-guidance", "profile"] as const;
   type TabType = typeof validTabs[number];
 
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
@@ -326,6 +327,9 @@ export default function App() {
   const [commentInputMap, setCommentInputMap] = useState<
     Record<string, string>
   >({});
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState("");
+
 
   // Fetch Speech Synthesis Voices
   useEffect(() => {
@@ -958,7 +962,8 @@ export default function App() {
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-4 h-4" /> },
             { id: "board-solutions", label: "Board Solutions", icon: <FileText className="w-4 h-4" />, url: "https://www.cbse.gov.in/cbsenew/model-answer.html" },
             { 
-              id: "career-guidance", 
+              id: "quiz-corner", label: "Quiz Corner", icon: <FileText className="w-4 h-4" /> },
+            { id: "career-guidance", 
               label: "Career Guidance", 
               icon: <Briefcase className="w-4 h-4" />,
               dropdown: [
@@ -979,7 +984,7 @@ export default function App() {
                 onClick={(e) => {
                   e.stopPropagation();
                   if ('url' in tab && tab.url) {
-                    window.open(tab.url, "_blank");
+                    window.location.href = tab.url;
                   } else if ('dropdown' in tab) {
                     setOpenDropdown(openDropdown === tab.id ? null : tab.id);
                   } else {
@@ -1153,7 +1158,8 @@ export default function App() {
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-3.5 h-3.5" /> },
             { id: "board-solutions", label: "Board Solutions", icon: <FileText className="w-3.5 h-3.5" />, url: "https://www.cbse.gov.in/cbsenew/model-answer.html" },
             { 
-              id: "career-guidance", 
+              id: "quiz-corner", label: "Quiz Corner", icon: <FileText className="w-4 h-4" /> },
+            { id: "career-guidance", 
               label: "Career Guidance", 
               icon: <Briefcase className="w-3.5 h-3.5" />,
               dropdown: [
@@ -1174,7 +1180,7 @@ export default function App() {
                 onClick={(e) => {
                   e.stopPropagation();
                   if ('url' in tab && tab.url) {
-                    window.open(tab.url, "_blank");
+                    window.location.href = tab.url;
                   } else if ('dropdown' in tab) {
                     setOpenDropdown(openDropdown === tab.id ? null : tab.id);
                   } else {
@@ -2804,11 +2810,16 @@ export default function App() {
                                   const cAuthor = isString ? commObj.split(':')[0] : (commObj.authorName || 'User');
                                   const cAvatar = isString ? '' : commObj.authorAvatar;
                                   const isMyComment = currentUser && currentUser.fullName === cAuthor;
+                                  const isMyPost = currentUser && currentUser.fullName === post.studentName;
+                                  const isAdmin = currentUser && currentUser.role === "admin";
+                                  const canEditOrDelete = isMyComment || isMyPost || isAdmin;
                                   
                                   let displayText = cText;
                                   if (isString && cText.includes(':')) {
                                     displayText = cText.split(':').slice(1).join(':').trim();
                                   }
+
+                                  const fallbackAvatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${cAuthor.replace(/\s+/g, '')}`;
 
                                   return (
                                     <div
@@ -2818,21 +2829,17 @@ export default function App() {
                                       {cAvatar ? (
                                         <img src={cAvatar} alt={cAuthor} className="w-6 h-6 rounded-full object-cover" />
                                       ) : (
-                                        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                                          {cAuthor.charAt(0)}
-                                        </div>
+                                        <img src={fallbackAvatar} alt={cAuthor} className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 object-cover" />
                                       )}
                                       <div className="flex-1">
                                         <div className="flex items-center justify-between">
                                           <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{cAuthor}</span>
-                                          {!isString && isMyComment && (
+                                          {canEditOrDelete && (
                                             <div className="flex items-center gap-2">
                                               <button 
                                                 onClick={() => {
-                                                  const newText = window.prompt("Edit your comment:", cText);
-                                                  if (newText && newText !== cText) {
-                                                    handleEditComment(post.id, cId, newText);
-                                                  }
+                                                  setEditingCommentId(cId);
+                                                  setEditCommentText(displayText);
                                                 }}
                                                 className="text-[10px] text-blue-500 hover:underline"
                                               >
@@ -2840,9 +2847,7 @@ export default function App() {
                                               </button>
                                               <button 
                                                 onClick={() => {
-                                                  if (window.confirm("Delete this comment?")) {
-                                                    handleDeleteComment(post.id, cId);
-                                                  }
+                                                  handleDeleteComment(post.id, cId);
                                                 }}
                                                 className="text-[10px] text-red-500 hover:underline"
                                               >
@@ -2851,7 +2856,35 @@ export default function App() {
                                             </div>
                                           )}
                                         </div>
-                                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">{displayText}</p>
+                                        {editingCommentId === cId ? (
+                                          <div className="mt-2 flex gap-2">
+                                            <input 
+                                              type="text" 
+                                              className="flex-1 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-xs dark:bg-slate-800 dark:text-slate-200"
+                                              value={editCommentText}
+                                              onChange={(e) => setEditCommentText(e.target.value)}
+                                            />
+                                            <button 
+                                              className="bg-blue-500 text-white px-2 py-1 rounded text-[10px]"
+                                              onClick={() => {
+                                                if (editCommentText.trim() && editCommentText !== displayText) {
+                                                  handleEditComment(post.id, cId, editCommentText.trim());
+                                                }
+                                                setEditingCommentId(null);
+                                              }}
+                                            >
+                                              Save
+                                            </button>
+                                            <button 
+                                              className="bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-200 px-2 py-1 rounded text-[10px]"
+                                              onClick={() => setEditingCommentId(null)}
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">{displayText}</p>
+                                        )}
                                       </div>
                                     </div>
                                   );
@@ -2948,6 +2981,18 @@ export default function App() {
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
               <EventsTab currentUser={currentUser} />
+            </motion.div>
+          )}
+
+          {activeTab === "quiz-corner" && (
+            <motion.div
+              key="quiz-corner"
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <QuizCornerTab currentUser={currentUser} />
             </motion.div>
           )}
 

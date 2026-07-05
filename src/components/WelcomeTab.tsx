@@ -335,12 +335,12 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                   <Sparkles className="w-4 h-4" /> Try AI Storyteller
                 </button>
               )}
-              <button
-                onClick={onNavigateToBooks}
+              <a
+                href="https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3"
                 className="px-6 py-3 bg-white/10 dark:bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-medium rounded-xl border border-white/20 transition-all inline-flex items-center gap-2"
               >
                 <BookOpen className="w-4 h-4" /> Explore Recent Books
-              </button>
+              </a>
             </div>
           </div>
           

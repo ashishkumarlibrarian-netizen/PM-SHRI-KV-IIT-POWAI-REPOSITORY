@@ -97,12 +97,7 @@ function ensureUsersFile() {
       role: "admin"
     });
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
-  } else {
-    // Reset password and ensure role
-    users[adminIndex].passwordHash = adminHash;
-    users[adminIndex].role = "admin";
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
-  }
+  } else { users[adminIndex].role = "admin"; fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8"); }
 }
 
 // Call on startup
@@ -1132,6 +1127,69 @@ function writeSocialPosts(posts: any[]) {
   fs.writeFileSync(SOCIAL_POSTS_FILE, JSON.stringify(posts, null, 2), "utf-8");
 }
 
+const QUIZ_LINKS_FILE = path.join(process.cwd(), "data", "quiz_links.json");
+function ensureQuizLinksFile() {
+  const dir = path.dirname(QUIZ_LINKS_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(QUIZ_LINKS_FILE)) fs.writeFileSync(QUIZ_LINKS_FILE, JSON.stringify([]));
+}
+function readQuizLinks(): any[] {
+  ensureQuizLinksFile();
+  try { return JSON.parse(fs.readFileSync(QUIZ_LINKS_FILE, "utf-8") || "[]"); }
+  catch { return []; }
+}
+function writeQuizLinks(links: any[]) {
+  ensureQuizLinksFile();
+  fs.writeFileSync(QUIZ_LINKS_FILE, JSON.stringify(links, null, 2), "utf-8");
+}
+
+app.get("/api/quiz-links", (req, res) => {
+  res.json(readQuizLinks());
+});
+
+app.post("/api/quiz-links", (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    const session = sessions.get(token);
+    if (!session) return res.status(401).json({ error: "Invalid token" });
+    const users = readUsers();
+    const user = users.find(u => u.id === session.userId);
+    const isLibraryAdmin = user && (user.role === "admin" || user.fullName === "Ashish Kumar" || user.email === "ashishkumar.librarian@gmail.com");
+    if (!isLibraryAdmin) return res.status(403).json({ error: "Admin required" });
+
+    const { title, url } = req.body;
+    if (!title || !url) return res.status(400).json({ error: "Title and URL required" });
+    const links = readQuizLinks();
+    links.push({ id: "quiz-" + Date.now(), title, url });
+    writeQuizLinks(links);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to add link" });
+  }
+});
+
+app.delete("/api/quiz-links/:id", (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    const session = sessions.get(token);
+    if (!session) return res.status(401).json({ error: "Invalid token" });
+    const users = readUsers();
+    const user = users.find(u => u.id === session.userId);
+    const isLibraryAdmin = user && (user.role === "admin" || user.fullName === "Ashish Kumar" || user.email === "ashishkumar.librarian@gmail.com");
+    if (!isLibraryAdmin) return res.status(403).json({ error: "Admin required" });
+
+    const { id } = req.params;
+    let links = readQuizLinks();
+    links = links.filter(l => l.id !== id);
+    writeQuizLinks(links);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete link" });
+  }
+});
+
 // Get all posts on the wall
 app.get("/api/social/posts", (req, res) => {
   try {
@@ -1235,8 +1293,8 @@ app.post("/api/social/posts/:id/like", (req, res) => {
 app.post("/api/social/posts/:id/comment", (req, res) => {
   try {
     const { id } = req.params;
-    const { comment } = req.body;
-    if (!comment || !comment.trim()) {
+    const { comment, authorName, authorAvatar } = req.body;
+    if (!comment || (!comment.trim && !comment.text)) {
       return res.status(400).json({ error: "Comment content is required." });
     }
 
@@ -1247,15 +1305,60 @@ app.post("/api/social/posts/:id/comment", (req, res) => {
     }
 
     if (!post.comments) post.comments = [];
-    post.comments.push(comment.trim());
+    const newComment = typeof comment === 'string' 
+      ? { id: Date.now().toString() + Math.random(), text: comment.trim(), authorName: authorName || "Unknown", authorAvatar: authorAvatar || "" }
+      : { id: Date.now().toString() + Math.random(), text: comment.text, authorName: comment.authorName || authorName || "Unknown", authorAvatar: comment.authorAvatar || authorAvatar || "" };
+    
+    post.comments.push(newComment);
     post.commentsCount = post.comments.length;
 
     writeSocialPosts(posts);
     res.json(post);
   } catch (err) {
-    res.status(500).json({ error: "Failed to post comment" });
+    res.status(500).json({ error: "Failed to add comment." });
   }
 });
+
+app.delete("/api/social/posts/:postId/comment/:commentId", (req, res) => {
+  try {
+    const { postId, commentId } = req.params;
+    const posts = readSocialPosts();
+    const post = posts.find(p => p.id === postId);
+    if (!post) return res.status(404).json({ error: "Post not found." });
+    
+    post.comments = (post.comments || []).filter(c => {
+      if (typeof c === 'string') return false;
+      return c.id !== commentId;
+    });
+    post.commentsCount = post.comments.length;
+    
+    writeSocialPosts(posts);
+    res.json(post);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete comment." });
+  }
+});
+
+app.put("/api/social/posts/:postId/comment/:commentId", (req, res) => {
+  try {
+    const { postId, commentId } = req.params;
+    const { text } = req.body;
+    const posts = readSocialPosts();
+    const post = posts.find(p => p.id === postId);
+    if (!post) return res.status(404).json({ error: "Post not found." });
+    
+    const comment = (post.comments || []).find(c => typeof c !== 'string' && c.id === commentId);
+    if (comment) {
+      comment.text = text;
+    }
+    
+    writeSocialPosts(posts);
+    res.json(post);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to edit comment." });
+  }
+});
+
 
 
 // ----------------------------------------------------------------------------

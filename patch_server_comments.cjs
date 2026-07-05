@@ -23,7 +23,7 @@ app.post("/api/social/posts/:id/comment", (req, res) => {
     writeSocialPosts(posts);
     res.json(post);
   } catch (err) {
-    res.status(500).json({ error: "Failed to add comment." });
+    res.status(500).json({ error: "Failed to post comment" });
   }
 });`;
 

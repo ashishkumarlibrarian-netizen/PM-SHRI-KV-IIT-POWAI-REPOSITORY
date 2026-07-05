@@ -1,0 +1,9 @@
+[
+  { "id": "q1", "title": "MyGov Quiz", "url": "https://quiz.mygov.in/" },
+  { "id": "q2", "title": "MyBharat Quiz", "url": "https://mybharat.gov.in/quiz" },
+  { "id": "q3", "title": "Education Quizzes (India)", "url": "https://www.educationquizzes.com/in/" },
+  { "id": "q4", "title": "CBSE Practice Ground Quiz", "url": "https://www.thepractiseground.in/quiz/cbse" },
+  { "id": "q5", "title": "Unstop Quizzes", "url": "https://unstop.com/quiz?oppstatus=open" },
+  { "id": "q6", "title": "Vedantu GK Quiz", "url": "https://www.vedantu.com/general-knowledge/quiz-questions-for-kids" },
+  { "id": "q7", "title": "Nacfun Quiz", "url": "https://nacfun.com/quiz-for-kids" }
+]
