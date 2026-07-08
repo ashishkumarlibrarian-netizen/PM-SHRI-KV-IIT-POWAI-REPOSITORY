@@ -1,3 +1,4 @@
+import { uploadFile } from "../lib/upload";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { BookOpen, Download, BookMarked, Plus, Edit2, Trash2, X, Image as ImageIcon } from "lucide-react";
@@ -124,16 +125,16 @@ export default function MagazineTab({ isAdmin }: { isAdmin?: boolean }) {
     setIsEditing(true);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          setFormData(prev => ({ ...prev, coverImage: ev.target!.result as string }));
-        }
-      };
-      reader.readAsDataURL(file as Blob);
+      try {
+        const publicUrl = await uploadFile(file, 'magazines');
+        setFormData(prev => ({ ...prev, coverImage: publicUrl }));
+      } catch (err: any) {
+        console.error("Upload failed:", err);
+        alert(`Upload failed: ${err.message || err}`);
+      }
     }
   };
 

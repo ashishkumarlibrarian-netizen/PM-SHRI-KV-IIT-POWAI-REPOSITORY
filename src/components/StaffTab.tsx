@@ -1,3 +1,4 @@
+import { uploadFile, uuidv4 } from "../lib/upload";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Users, BookHeart, User, Edit2, Plus, Trash2, Save, X, Camera } from "lucide-react";
@@ -15,8 +16,8 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
     fetch("/api/settings/staff")
       .then(res => res.json())
       .then(data => {
-        setStaffData(data);
-        setEditData(data);
+        setStaffData(JSON.parse(JSON.stringify(data)));
+        setEditData(JSON.parse(JSON.stringify(data)));
         setIsLoading(false);
       })
       .catch(err => {
@@ -37,29 +38,33 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
         body: JSON.stringify(editData)
       });
       if (res.ok) {
-        setStaffData(editData);
+        setStaffData(JSON.parse(JSON.stringify(editData)));
         setIsEditing(false);
         setSaveStatus("");
       } else {
-        setSaveStatus("Failed to save");
+        const errorData = await res.json().catch(() => ({}));
+        const detailedError = errorData.details || errorData.error || "Unknown server error";
+        setSaveStatus(`Failed: ${detailedError}`);
+        alert(`Failed to save staff members: ${detailedError}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       setSaveStatus("Failed to save");
+      alert(`An error occurred: ${err.message || err}`);
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, listType: 'staffMembers'|'editorialTeam', index: number) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, listType: 'staffMembers'|'editorialTeam', index: number) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target && typeof event.target.result === "string") {
-          const newData = { ...editData };
-          newData[listType][index].image = event.target.result;
-          setEditData(newData);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const publicUrl = await uploadFile(file, 'staff');
+        const newData = JSON.parse(JSON.stringify(editData));
+        newData[listType][index].image = publicUrl;
+        setEditData(newData);
+      } catch (err: any) {
+        console.error("Upload failed:", err);
+        alert(`Upload failed: ${err.message || err}`);
+      }
     }
   };
 
@@ -73,7 +78,7 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
         <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Edit Team Members</h2>
           <div className="flex gap-3">
-            <button onClick={() => { setIsEditing(false); setEditData(staffData); }} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl flex items-center gap-2">
+            <button onClick={() => { setIsEditing(false); setEditData(JSON.parse(JSON.stringify(staffData))); }} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl flex items-center gap-2">
               <X className="w-4 h-4" /> Cancel
             </button>
             <button onClick={handleSave} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl flex items-center gap-2">
@@ -90,9 +95,9 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
               </h3>
               <button 
                 onClick={() => {
-                  const newData = { ...editData };
+                  const newData = JSON.parse(JSON.stringify(editData));
                   newData[listType].push({
-                    id: Date.now().toString() + Math.random(),
+                    id: uuidv4(),
                     name: "New Member",
                     role: "Role",
                     contribution: "Description...",
@@ -145,7 +150,7 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
         {isAdmin && (
           <button 
-            onClick={() => setIsEditing(true)}
+            onClick={() => { setEditData(JSON.parse(JSON.stringify(staffData))); setIsEditing(true); }}
             className="absolute top-4 right-4 z-20 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors shadow-sm"
           >
             <Edit2 className="w-4 h-4" /> Edit Team

@@ -1,3 +1,4 @@
+import { uploadFile } from "../lib/upload";
 import React, { useState, useEffect } from "react";
 import { BookOpen, Calendar, HelpCircle, Award, Compass, ShieldAlert, Sparkles, User, FileText, CheckCircle2, Edit3, Plus, Trash2, Send, Loader2, X, Image as ImageIcon } from "lucide-react";
 import { NoticeItem, LibraryStat,  } from "../types";
@@ -205,22 +206,25 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
     }
   };
   
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []) as File[];
     if (!files.length) return;
     
-    files.forEach(file => {
-      if (file && (file as File).type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          if (event.target && typeof event.target.result === "string") {
-            setMediaUrls(prev => [...prev, event.target!.result as string]);
-            if (mediaUrls.length === 0) setImageUrl(event.target!.result as string);
-          }
-        };
-        reader.readAsDataURL(file as Blob);
+    for (const file of files) {
+      if (file && file.type.startsWith("image/")) {
+        try {
+          const publicUrl = await uploadFile(file, 'notices');
+          setMediaUrls(prev => {
+             const newUrls = [...prev, publicUrl];
+             if (newUrls.length === 1) setImageUrl(publicUrl);
+             return newUrls;
+          });
+        } catch (err: any) {
+          console.error("Upload failed:", err);
+          alert(`Upload failed: ${err.message || err}`);
+        }
       }
-    });
+    }
   };
 
   const removeMedia = (index: number) => {
@@ -808,20 +812,20 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                   accept="image/*" 
                   multiple 
                   className="hidden" 
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || []) as File[];
                     if (!files.length) return;
-                    files.forEach(file => {
-                      if (file && (file as File).type.startsWith("image/")) {
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          if (event.target && typeof event.target.result === "string") {
-                            setEditingHeroImages(prev => [...prev, event.target!.result as string]);
-                          }
-                        };
-                        reader.readAsDataURL(file as Blob);
+                    for (const file of files) {
+                      if (file && file.type.startsWith("image/")) {
+                        try {
+                          const publicUrl = await uploadFile(file, 'bulletin');
+                          setEditingHeroImages(prev => [...prev, publicUrl]);
+                        } catch (err: any) {
+                          console.error("Upload failed:", err);
+                          alert(`Upload failed: ${err.message || err}`);
+                        }
                       }
-                    });
+                    }
                   }} 
                 />
               </label>

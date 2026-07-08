@@ -1,3 +1,4 @@
+import { uploadFile, uuidv4 } from "../lib/upload";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Users, Award, BookHeart, User, Heart, Star, BookOpen, Folder, ArrowLeft, ChevronRight, Plus, Trash2, Edit2, Loader2, Save, X } from "lucide-react";
@@ -28,26 +29,33 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
       if (data.folders && data.folders.length > 0) {
         setFolders(data.folders);
       } else {
-        // Default data
+        // Initial defaults with correct UUID formats
         const initialFolders = [
           { 
-            id: "committee", name: "Core Committee", color: "text-blue-600 bg-blue-100 dark:bg-blue-900/50", 
+            id: "e4a2d7c0-2f34-4b5b-8f77-fa89a6902231", 
+            name: "Core Committee", 
+            color: "text-blue-600 bg-blue-100 dark:bg-blue-900/50", 
+            logo: "",
             members: [
-              { name: "Rohan Patel", role: "President", contribution: "Organized the inter-school reading competition and established the weekly peer-reading sessions.", avatarColor: "bg-blue-100 text-blue-700", grade: "Class X-A" },
-              { name: "Sneha Iyer", role: "Secretary", contribution: "Maintained the reading logs for junior classes and managed the library book review board.", avatarColor: "bg-pink-100 text-pink-700", grade: "Class IX-B" }
+              { id: "e4a2d7c0-2f34-4b5b-8f77-fa89a6902232", name: "Rohan Patel", role: "President", contribution: "Organized the inter-school reading competition and established the weekly peer-reading sessions.", avatarColor: "bg-blue-100 text-blue-700", grade: "Class X-A", image: "" },
+              { id: "e4a2d7c0-2f34-4b5b-8f77-fa89a6902233", name: "Sneha Iyer", role: "Secretary", contribution: "Maintained the reading logs for junior classes and managed the library book review board.", avatarColor: "bg-pink-100 text-pink-700", grade: "Class IX-B", image: "" }
             ] 
           },
           { 
-            id: "class6", name: "Class 6th", color: "text-indigo-600 bg-indigo-100 dark:bg-indigo-900/50", 
+            id: "e4a2d7c0-2f34-4b5b-8f77-fa89a6902234", 
+            name: "Class 6th", 
+            color: "text-indigo-600 bg-indigo-100 dark:bg-indigo-900/50", 
+            logo: "",
             members: [
-              { name: "Bandi Madhava", role: "Member", contribution: "Active participant in weekly book discussions.", avatarColor: "bg-indigo-100 text-indigo-700", grade: "Class VI B" }
+              { id: "e4a2d7c0-2f34-4b5b-8f77-fa89a6902235", name: "Bandi Madhava", role: "Member", contribution: "Active participant in weekly book discussions.", avatarColor: "bg-indigo-100 text-indigo-700", grade: "Class VI B", image: "" }
             ] 
           }
         ];
-        setFolders(initialFolders);
+        // Save these defaults securely to database
+        await saveData(initialFolders);
       }
     } catch (e) {
-      console.error(e);
+      console.error("Fetch Readers Club failed:", e);
     } finally {
       setLoading(false);
     }
@@ -66,10 +74,17 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
         body: JSON.stringify({ folders: updatedFolders })
       });
       if (res.ok) {
-        setFolders(updatedFolders);
+        // Reload data from Supabase to prevent local state source-of-truth discrepancy
+        const freshRes = await fetch("/api/readers-club");
+        const freshData = await freshRes.json();
+        setFolders(freshData.folders || []);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Failed to save Readers Club: ${errorData.details || errorData.error || 'Server error'}`);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("Save Readers Club failed:", e);
+      alert(`An error occurred: ${e.message || e}`);
     } finally {
       setIsSaving(false);
     }
@@ -78,7 +93,7 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
   const handleAddFolder = async () => {
     if (!newFolderName.trim()) return;
     const updated = [...folders, { 
-      id: Date.now().toString(), 
+      id: uuidv4(), 
       name: newFolderName, 
       color: newFolderColor, 
       logo: newFolderLogo, 
@@ -102,7 +117,7 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
     if (!newMember.name.trim() || !activeFolderId) return;
     const updated = folders.map(f => {
       if (f.id === activeFolderId) {
-        return { ...f, members: [...f.members, { ...newMember }] };
+        return { ...f, members: [...f.members, { ...newMember, id: uuidv4() }] };
       }
       return f;
     });
@@ -122,25 +137,29 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
     await saveData(updated);
   };
 
-  const handleFolderLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFolderLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setNewFolderLogo(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const publicUrl = await uploadFile(file, 'gallery');
+        setNewFolderLogo(publicUrl);
+      } catch (err: any) {
+        console.error("Upload failed:", err);
+        alert(`Upload failed: ${err.message || err}`);
+      }
     }
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setNewMember(prev => ({ ...prev, image: event.target?.result as string }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const publicUrl = await uploadFile(file, 'profiles');
+        setNewMember(prev => ({ ...prev, image: publicUrl }));
+      } catch (err: any) {
+        console.error("Upload failed:", err);
+        alert(`Upload failed: ${err.message || err}`);
+      }
     }
   };
 

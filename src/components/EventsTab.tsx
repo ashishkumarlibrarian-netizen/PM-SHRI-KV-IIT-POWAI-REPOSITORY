@@ -1,3 +1,4 @@
+import { uploadFile } from "../lib/upload";
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Calendar, Image as ImageIcon, Video, Send, Loader2, Edit3, Plus, Trash2, Search, X, ChevronLeft, ChevronRight, UploadCloud } from "lucide-react";
@@ -92,19 +93,19 @@ export default function EventsTab({ currentUser }: EventsTabProps) {
     setEditingId(null);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setMediaUrls(prev => [...prev, event.target!.result as string]);
-        }
-      };
-      reader.readAsDataURL(file as Blob);
-    });
+    for (const file of Array.from(files) as File[]) {
+      try {
+        const publicUrl = await uploadFile(file, 'events');
+        setMediaUrls(prev => [...prev, publicUrl]);
+      } catch (err: any) {
+        console.error("Upload failed:", err);
+        alert(`Upload failed: ${err.message || err}`);
+      }
+    }
   };
 
   const removeMedia = (index: number) => {

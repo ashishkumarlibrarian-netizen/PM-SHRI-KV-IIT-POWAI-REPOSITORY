@@ -1,3 +1,4 @@
+import { uploadFile } from "../lib/upload";
 import React, { useState } from "react";
 import { User, Lock, Save, Camera } from "lucide-react";
 
@@ -19,8 +20,13 @@ export default function ProfileTab({ currentUser, onUpdate }: { currentUser: any
         body: JSON.stringify({ fullName: name, password, avatarUrl })
       });
       if (response.ok) {
-        const updatedUser = await response.json();
-        onUpdate({ ...currentUser, fullName: updatedUser.fullName, avatarUrl: updatedUser.avatarUrl });
+        const data = await response.json();
+        const updated = data.user || {};
+        onUpdate({ 
+          ...currentUser, 
+          fullName: updated.fullName || name, 
+          avatarUrl: updated.avatarUrl || avatarUrl 
+        });
         setStatusMessage("Profile updated successfully!");
         setPassword("");
         setTimeout(() => setStatusMessage(""), 3000);
@@ -34,16 +40,16 @@ export default function ProfileTab({ currentUser, onUpdate }: { currentUser: any
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target && typeof event.target.result === "string") {
-          setAvatarUrl(event.target.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const publicUrl = await uploadFile(file, 'profiles');
+        setAvatarUrl(publicUrl);
+      } catch (err: any) {
+        console.error("Upload failed:", err);
+        alert(`Upload failed: ${err.message || err}`);
+      }
     }
   };
 

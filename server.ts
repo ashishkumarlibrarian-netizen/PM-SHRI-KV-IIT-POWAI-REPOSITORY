@@ -1,1532 +1,764 @@
+
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
+
 import express from "express";
 import path from "path";
-import { GoogleGenAI, Type } from "@google/genai";
-import OpenAI from "openai";
-import { createServer as createViteServer } from "vite";
-import dotenv from "dotenv";
-import fs from "fs";
 import crypto from "crypto";
+import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+import multer from "multer";
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+const asyncHandler = (fn: any) => (req: any, res: any, next: any) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+const PORT: number = Number(process.env.PORT || 3000);
 
 app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-const USERS_FILE = path.join(process.cwd(), "data", "users.json");
+// Initialize Supabase client for backend (using service role to bypass RLS)
+const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://zsdaszwqwpjywmltlhps.supabase.co";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_secret_LOt_hYVdVrFXe4ptcNH12A_3RIywl7e";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-interface User {
-  id: string;
-  email: string;
-  username: string;
-  fullName: string;
-  className: string;
-  passwordHash: string;
-  createdAt: string;
-  role?: string;
-  avatarUrl?: string;
-}
+// AI Setup
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "dummy" });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "dummy" });
 
-class SessionStore {
-  file: string;
-  constructor(file: string) {
-    this.file = file;
-    const dir = path.dirname(this.file);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    if (!fs.existsSync(file)) {
-      fs.writeFileSync(file, "{}");
-    }
-  }
-  get(key: string) {
-    try {
-      const data = JSON.parse(fs.readFileSync(this.file, "utf-8"));
-      return data[key];
-    } catch(e) { return undefined; }
-  }
-  set(key: string, value: any) {
-    try {
-      const data = JSON.parse(fs.readFileSync(this.file, "utf-8"));
-      data[key] = value;
-      fs.writeFileSync(this.file, JSON.stringify(data));
-    } catch(e) {}
-  }
-  delete(key: string) {
-    try {
-      const data = JSON.parse(fs.readFileSync(this.file, "utf-8"));
-      delete data[key];
-      fs.writeFileSync(this.file, JSON.stringify(data));
-    } catch(e) {}
-  }
-}
+// Dummy session store (can also be moved to Supabase if needed, but simple memory is fine for MVP)
+const sessions = new Map();
 
-// Local sessions store file-backed
-const sessions = new SessionStore(path.join(process.cwd(), "data", "sessions.json"));
-
-// Ensure database file exists
-function ensureUsersFile() {
-  const dir = path.dirname(USERS_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  let users: User[] = [];
-  if (!fs.existsSync(USERS_FILE)) {
-    fs.writeFileSync(USERS_FILE, JSON.stringify([]));
-  } else {
-    try {
-      users = JSON.parse(fs.readFileSync(USERS_FILE, "utf-8") || "[]");
-    } catch(e) {}
-  }
-  
-  // Seed admin user
-  const adminEmail = "ashishkumar.librarian@gmail.com";
-  const adminIndex = users.findIndex(u => u.email === adminEmail);
-  const adminHash = hashPassword("1234");
-  
-  if (adminIndex === -1) {
-    users.push({
-      id: "admin-1",
-      email: adminEmail,
-      username: "admin",
-      fullName: "Ashish Kumar",
-      className: "Staff",
-      passwordHash: adminHash,
-      createdAt: new Date().toISOString(),
-      role: "admin"
-    });
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
-  } else { users[adminIndex].role = "admin"; fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8"); }
-}
-
-// Call on startup
-ensureUsersFile();
-
-function readUsers(): User[] {
-  ensureUsersFile();
-  try {
-    const data = fs.readFileSync(USERS_FILE, "utf-8");
-    return JSON.parse(data || "[]");
-  } catch (err) {
-    return [];
-  }
-}
-
-function writeUsers(users: User[]) {
-  ensureUsersFile();
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
-}
-
-function hashPassword(password: string): string {
-  const salt = "PM_SHRI_SALT_2026";
-  return crypto.createHmac("sha256", salt).update(password).digest("hex");
-}
-
-// Lazy-initialization utility for Gemini API to prevent crash if key is missing
-let aiClient: GoogleGenAI | null = null;
-function getAI(): GoogleGenAI {
-  if (!aiClient) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
-      throw new Error("GEMINI_API_KEY environment variable is required but missing.");
-    }
-    aiClient = new GoogleGenAI({
-      apiKey: key,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
-  }
-  return aiClient;
-}
-
-// ----------------------------------------------------------------------------
-// API Routes
-
-const defaultLibrarySettings = {
-  logoUrl: "",
-  name: "PM Shri Kendriya Vidyalaya",
-  tag: "IIT Powai Library",
-  headerTitle: "KV IIT Powai Digital Library Hub"
+// Helper for sending generic error
+const handleError = (res: any, error: any, msg: string) => {
+  console.error("SUPABASE_ERROR_DETAILS:", error, "CAUSE:", error?.cause);
+  return res.status(500).json({ 
+    error: msg, 
+    details: error?.message || error, 
+    cause: error?.cause?.message || (error?.cause ? String(error.cause) : undefined),
+    code: error?.code, 
+    hint: error?.hint 
+  });
 };
 
-
-app.put("/api/user/profile", (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized" });
+// --- FILE UPLOAD ---
+app.post("/api/upload", upload.single("file"), asyncHandler(async (req: any, res: any) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
   }
-  const token = authHeader.split(" ")[1];
-  const session = sessions.get(token);
-  if (!session || session.expiresAt < Date.now()) {
-    if (session) sessions.delete(token); // clean up expired
-    return res.status(401).json({ error: "Invalid or expired token" });
+  const bucket = req.body.bucket || "documents";
+  
+  // Generate a clean random filename
+  const fileExt = req.file.originalname.split('.').pop() || 'jpg';
+  const fileName = `${crypto.randomUUID()}.${fileExt}`;
+  
+  console.log(`Backend uploading file: ${fileName} to bucket: ${bucket}`);
+  
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(fileName, req.file.buffer, {
+      contentType: req.file.mimetype,
+      upsert: true
+    });
+    
+  if (error) {
+    console.error(`Upload error for bucket ${bucket}:`, error);
+    return handleError(res, error, `Failed to upload to bucket ${bucket}`);
   }
   
-  const users = readUsers();
-  const userIndex = users.findIndex(u => u.id === session.userId);
-
-  if (userIndex === -1) {
-    return res.status(404).json({ error: "User not found" });
-  }
-
-  const { fullName, password, avatarUrl } = req.body;
-  
-  if (fullName) users[userIndex].fullName = fullName;
-  if (avatarUrl !== undefined) users[userIndex].avatarUrl = avatarUrl;
-  if (password) users[userIndex].passwordHash = hashPassword(password); // hashed
-
-  writeUsers(users);
-  
-  const updatedUser = users[userIndex];
-  res.json({
-    id: updatedUser.id,
-    email: updatedUser.email,
-    fullName: updatedUser.fullName,
-    role: updatedUser.role,
-    className: updatedUser.className,
-    avatarUrl: updatedUser.avatarUrl
-  });
-});
-
-
-app.get("/api/settings/staff", (req, res) => {
-  try {
-    res.json(readStaff());
-  } catch (err) {
-    res.status(500).json({ error: "Failed to read staff data" });
-  }
-});
-
-app.put("/api/settings/staff", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const token = authHeader.split(" ")[1];
-    const session = sessions.get(token);
-    if (!session || session.expiresAt < Date.now()) {
-      return res.status(401).json({ error: "Invalid or expired token" });
-    }
+  const { data: { publicUrl } } = supabase.storage
+    .from(bucket)
+    .getPublicUrl(fileName);
     
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    if (!user || (user.role !== "admin" && user.fullName !== "Ashish Kumar")) {
-      return res.status(403).json({ error: "Forbidden: Admin access required" });
-    }
+  res.json({ publicUrl });
+}));
 
-    const newStaffData = req.body;
-    writeStaff(newStaffData);
-    res.json(newStaffData);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to update staff data" });
-  }
-});
-
-app.get("/api/settings/library", (req, res) => {
+// --- AUTH & USERS ---
+app.post("/api/auth/register", asyncHandler(async (req, res, next) => {
   try {
-    const settings = readSettings();
-    res.json(settings.library || defaultLibrarySettings);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load library settings" });
-  }
-});
+    const { email, username, fullName, className, password } = req.body;
+    if (!email || !username || !fullName || !password) return res.status(400).json({ error: "Missing registration fields" });
 
-app.put("/api/settings/library", (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  const token = authHeader.split(" ")[1];
-  const session = sessions.get(token);
-  if (!session || session.expiresAt < Date.now()) {
-    if (session) sessions.delete(token); // clean up expired
-    return res.status(401).json({ error: "Invalid or expired token" });
-  }
-  const users = readUsers();
-  const user = users.find(u => u.id === session.userId);
+    // Check if the email exists in public.users to give a clean message
+    const { data: existingUser } = await supabase.from('users').select('id').eq('email', email).maybeSingle();
+    if (existingUser) return res.status(400).json({ error: "Email already registered" });
 
-  if (!user || user.role !== "admin") {
-    return res.status(403).json({ error: "Admin access required" });
-  }
-  try {
-    const settings = readSettings();
-    const librarySettings = settings.library || { ...defaultLibrarySettings };
-    
-    const { logoUrl, name, tag, headerTitle } = req.body;
-    if (logoUrl !== undefined) librarySettings.logoUrl = logoUrl;
-    if (name !== undefined) librarySettings.name = name;
-    if (tag !== undefined) librarySettings.tag = tag;
-    if (headerTitle !== undefined) librarySettings.headerTitle = headerTitle;
-    
-    settings.library = librarySettings;
-    writeSettings(settings);
-    res.json(librarySettings);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to save library settings" });
-  }
-});
+    // Create user in Supabase Auth securely (automatically confirmed)
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        username,
+        full_name: fullName,
+        class_name: className || ""
+      }
+    });
 
-// ----------------------------------------------------------------------------
-
-// 1. Health check Endpoint
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    library: "PM Shri KV IIT Powai Library Hub",
-  });
-});
-
-// 2. Authentication: Register
-app.post("/api/auth/register", (req, res) => {
-  try {
-    const { email, username, password, fullName, className = "" } = req.body;
-
-    if (!email || !username || !password || !fullName) {
-      return res.status(400).json({ error: "All fields are required." });
+    if (authError) {
+      return res.status(400).json({ error: authError.message });
     }
 
-    const emailClean = email.trim().toLowerCase();
-    const usernameClean = username.trim().toLowerCase();
-
-    if (usernameClean.length < 3) {
-      return res.status(400).json({ error: "Username must be at least 3 characters." });
-    }
-
-    const users = readUsers();
-
-    // Check if user already exists
-    if (users.find(u => u.email === emailClean)) {
-      return res.status(400).json({ error: "Email already registered." });
-    }
-    if (users.find(u => u.username === usernameClean)) {
-      return res.status(400).json({ error: "Username already taken." });
-    }
-
-    const newUser: User = {
-      id: "user-" + Math.random().toString(36).substr(2, 9),
-      email: emailClean,
-      username: usernameClean,
-      fullName: fullName.trim(),
-      className: className.trim(),
-      passwordHash: hashPassword(password),
-      createdAt: new Date().toISOString(),
+    const newUser = {
+      id: authData.user.id,
+      email,
+      username,
+      full_name: fullName,
+      class_name: className || "",
+      role: "student",
+      created_at: new Date().toISOString()
     };
 
-    users.push(newUser);
-    writeUsers(users);
+    const { error: dbError } = await supabase.from('users').insert(newUser);
+    if (dbError) return handleError(res, dbError, "Failed to create user profile");
 
-    // Create session
     const token = crypto.randomBytes(32).toString("hex");
-    sessions.set(token, {
-      userId: newUser.id,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-    });
+    sessions.set(token, newUser.id);
 
-    const { passwordHash, ...userResponse } = newUser;
-    res.status(201).json({
-      message: "Registration successful!",
-      user: userResponse,
-      token,
-    });
-  } catch (error: any) {
-    console.error("Registration error:", error);
-    res.status(500).json({ error: "Registration failed. Please try again." });
-  }
-});
-
-// 3. Authentication: Login
-app.post("/api/auth/login", (req, res) => {
-  try {
-    const { usernameOrEmail, password } = req.body;
-
-    if (!usernameOrEmail || !password) {
-      return res.status(400).json({ error: "Username/Email and password are required." });
-    }
-
-    const inputClean = usernameOrEmail.trim().toLowerCase();
-    const users = readUsers();
-
-    const user = users.find(u => u.username === inputClean || u.email === inputClean);
-
-    if (!user) {
-      return res.status(400).json({ error: "Invalid username/email or password." });
-    }
-
-    const inputHash = hashPassword(password);
-    if (user.passwordHash !== inputHash) {
-      return res.status(400).json({ error: "Invalid username/email or password." });
-    }
-
-    // Create session
-    const token = crypto.randomBytes(32).toString("hex");
-    sessions.set(token, {
-      userId: user.id,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-    });
-
-    const { passwordHash, ...userResponse } = user;
     res.json({
-      message: "Login successful!",
-      user: userResponse,
+      message: "Registered successfully",
       token,
-    });
-  } catch (error: any) {
-    console.error("Login error:", error);
-    res.status(500).json({ error: "Login failed. Please try again." });
-  }
-});
-
-// 4. Authentication: Get Current Profile
-app.get("/api/auth/me", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized access." });
-    }
-
-    const token = authHeader.split(" ")[1];
-    const session = sessions.get(token);
-
-    if (!session || session.expiresAt < Date.now()) {
-      if (session) sessions.delete(token); // clean up expired
-      return res.status(401).json({ error: "Session expired or invalid." });
-    }
-
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-
-    if (!user) {
-      return res.status(401).json({ error: "User not found." });
-    }
-
-    const { passwordHash, ...userResponse } = user;
-    res.json({ user: userResponse });
-  } catch (error: any) {
-    console.error("Auth check error:", error);
-    res.status(500).json({ error: "Authentication check failed." });
-  }
-});
-
-// 2. AI Interactive Storyteller / Choose Your Own Adventure Creator
-app.post("/api/story/generate", async (req, res) => {
-  try {
-    const { genre, character, prompt, readingAge, currentHistory, chosenPath } = req.body;
-    const ai = getAI();
-
-    // Construct history context if student is already in a session
-    let historyContext = "";
-    if (currentHistory && Array.isArray(currentHistory) && currentHistory.length > 0) {
-      historyContext = `Here is the story so far:\n` + currentHistory.map((h: any, i: number) => `Chapter ${i+1}: ${h.text}\nStudent chose: ${h.choice}`).join("\n");
-    }
-
-    let promptContent = `
-You are the AI Storytelling Librarian of PM Shri Kendriya Vidyalaya IIT Powai. 
-Your goal is to weave an educational, inspiring, and engaging "Choose-Your-Own-Adventure" story for a student.
-
-Story parameters:
-- Genre/Theme: ${genre || "Panchatantra Wisdom"}
-- Protagonist Name/Description: ${character || "Arav, an inquisitive KV student"}
-- Extra Prompt Context: ${prompt || "No extra context, surprise me!"}
-- Target Audience Age / Reading Level: ${readingAge || "Juniors (Age 8-12)"}
-- Current Story History Context: ${historyContext || "None. This is the start of the adventure."}
-${chosenPath ? `- Next action chosen by the student: "${chosenPath}"` : ""}
-
-Instructions:
-1. Generate the next chapter or segment of the story. Use elegant, readable markdown formatting suitable for school kids. Keep the tone warm, uplifting, and aligned with PM Shri Kendriya Vidyalaya values (academic excellence, curiosity, scientific temper, and Indian heritage).
-2. Since IIT Powai is located in Mumbai right next to the beautiful Sanjay Gandhi National Park, Powai Lake, and Indian Institute of Technology (IIT) campus, weave in subtle local touches if appropriate (e.g., campus monkeys, tech labs, lake breeze, scientific experiments, or cultural activities).
-3. Provide exactly TWO choices for the student to continue their adventure, unless the story is ending. If the story should conclude in this chapter, make isEnd true, set choices to empty array, and summarize a beautiful moral lesson or discovery.
-4. Provide a descriptive image prompt for illustrating this specific chapter.
-
-Be creative! Generate a beautiful JSON response that strictly complies with the schema.
-    `;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: promptContent,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING, description: "Title of the story chapter" },
-            storySegment: { type: Type.STRING, description: "Continuous story narrative with markdown formatting. Word count should be around 150-250 words." },
-            illustrationPrompt: { type: Type.STRING, description: "Descriptive visual prompt fitting for a schoolbook illustration (e.g., 'A watercolor painting of...')" },
-            choices: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Exactly two interesting choice options for what the protagonist should do next. Empty array if story concludes."
-            },
-            isEnd: { type: Type.BOOLEAN, description: "Whether this segment is the final chapter of the story" },
-          },
-          required: ["title", "storySegment", "illustrationPrompt", "choices", "isEnd"],
-        },
-      },
-    });
-
-    const parsedData = JSON.parse(response.text || "{}");
-    res.json(parsedData);
-  } catch (error: any) {
-    console.error("Story generation failed:", error);
-    res.status(500).json({
-      error: "Could not generate story right now",
-      details: error.message,
-    });
-  }
-});
-
-// 3. AI Book Advisor & Reading Goal Advisor
-app.post("/api/books/recommend", async (req, res) => {
-  try {
-    const { query, ageGroup, genrePreference, schoolSubject } = req.body;
-    const ai = getAI();
-
-    let recommendationPrompt = `
-You are Ashish Kumar, the expert librarian of PM Shri KV IIT Powai Library.
-Recommend 4 wonderful, real books (both popular Indian literature like Ruskin Bond, J.C. Bose history, Panchatantra, APJ Abdul Kalam, as well as worldwide children classics) that fit the student's interests.
-
-Criteria:
-- Student Query/Interests: "${query || "Advancing science and general curiosities"}"
-- Age Group: "${ageGroup || "High School"}"
-- Select Genres: "${genrePreference || "Science / Adventure"}"
-- Correlated School Subject (CBSE curriculum): "${schoolSubject || "General Science / English Lit"}"
-
-Please return an array of 4 book recommendation objects. Each object must have:
-- title: Book Title
-- author: Author's Name
-- genre: Sub-genre or category
-- description: A captivating 2-sentence hook about the plot/concept.
-- whyRecommended: Tailored explanation of why this book stimulates learning for this CBSE age group.
-- difficulty: One of 'Easy', 'Medium', or 'Challenging'
-- funActivity: A creative, hands-on activity the student can do after reading (e.g. 'Create your own homemade kaleidoscope' or 'Write a letter to your future self in 2035').
-
-Return a JSON array strictly complying with the schema.
-    `;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: recommendationPrompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              author: { type: Type.STRING },
-              genre: { type: Type.STRING },
-              description: { type: Type.STRING },
-              whyRecommended: { type: Type.STRING },
-              difficulty: { type: Type.STRING },
-              funActivity: { type: Type.STRING },
-            },
-            required: ["title", "author", "genre", "description", "whyRecommended", "difficulty", "funActivity"],
-          },
-        },
-      },
-    });
-
-    const parsedData = JSON.parse(response.text || "[]");
-    res.json({ recommendations: parsedData });
-  } catch (error: any) {
-    console.error("Book recommendation failed:", error);
-    res.status(500).json({
-      error: "Book suggestions currently unavailable.",
-      details: error.message,
-    });
-  }
-});
-
-// 4. Student Creative Zone: Poem & Creative Writing Review Coach
-app.post("/api/creative/write", async (req, res) => {
-  try {
-    const { topic, formType, mood, userKeywords } = req.body;
-    const ai = getAI();
-
-    const creativePrompt = `
-You are the Creative Writing Mentor for PM Shri KV IIT Powai Library.
-Compose a beautiful piece of literature to inspire students, based on their input:
-- Topic: ${topic || "Rain over Powai Lake"}
-- Form Type: ${formType || "Poem"} (e.g., Rhyme Poem, Haiku, Starting Lines for a Mystery Novel, Inspiring Quote)
-- Mood: ${mood || "Uplifting and Joyful"}
-- Student's keywords to include: "${userKeywords || "monkeys, raindrops, knowledge"}"
-
-Provide:
-1. A unique, beautifully formatted Title.
-2. The core creative piece (using beautiful line breaks if poetry, or paragraphs).
-3. 3 "Mentor Tidbits" or educational tips that explain the literary devices used (like personification, rhyme schemes, or metaphors), teaching students how to write like this themselves.
-
-Format the response strictly as a JSON object adhering to the schema.
-    `;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: creativePrompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            output: { type: Type.STRING, description: "The full literary piece with formatting" },
-            educationalTips: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Three helpful, child-friendly insights explaining literary elements used."
-            }
-          },
-          required: ["title", "output", "educationalTips"],
-        },
-      },
-    });
-
-    const parsedData = JSON.parse(response.text || "{}");
-    res.json(parsedData);
-  } catch (error: any) {
-    console.error("Creative writing agent failed:", error);
-    res.status(500).json({
-      error: "Unable to craft creative piece right now.",
-      details: error.message,
-    });
-  }
-});
-
-
-// Lazy-initialization utility for OpenAI API
-let openaiClient: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!openaiClient) {
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) {
-      throw new Error("OPENAI_API_KEY environment variable is required but missing.");
-    }
-    openaiClient = new OpenAI({
-      apiKey: key,
-    });
-  }
-  return openaiClient;
-}
-
-// ----------------------------------------------------------------------------
-// Real-time Library Wall Social Feed APIs
-// ----------------------------------------------------------------------------
-
-const EVENTS_FILE = path.join(process.cwd(), "data", "events.json");
-
-function ensureEventsFile() {
-  const dir = path.dirname(EVENTS_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  if (!fs.existsSync(EVENTS_FILE)) {
-    fs.writeFileSync(EVENTS_FILE, JSON.stringify([]));
-  }
-}
-
-function readEvents(): any[] {
-  ensureEventsFile();
-  try {
-    const data = fs.readFileSync(EVENTS_FILE, "utf-8");
-    return JSON.parse(data || "[]");
-  } catch (err) {
-    return [];
-  }
-}
-
-function writeEvents(events: any[]) {
-  ensureEventsFile();
-  fs.writeFileSync(EVENTS_FILE, JSON.stringify(events, null, 2), "utf-8");
-}
-
-const NOTICES_FILE = path.join(process.cwd(), "data", "notices.json");
-
-function ensureNoticesFile() {
-  const dir = path.dirname(NOTICES_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  if (!fs.existsSync(NOTICES_FILE)) {
-    // Initial static notices if none exist
-    const initialNotices = [
-      {
-        id: "1",
-        title: "PUSTAKOUPHAR: Gift a Book, Share a Smile!",
-        date: "April 01, 2026 - April 05, 2026",
-        category: "Activity",
-        content: "If you do not find a taker, deposit your books in the Library Green Book Bank. If you are looking for a gift (of books), get it from a student of your class or from the Library Green Book Bank. Old Books Can Shape Someone's Future.",
-        badge: "Book Drive",
-        priority: "High",
-        imageUrl: "/pustakouphar.jpeg"
-      },
-      {
-        id: "2",
-        title: "PM Shri e-Learning Corner Inaugration",
-        date: "June 20, 2026",
-        category: "PM-Shri",
-        content: "We are thrilled to unveil our new AI-enabled interactive e-Learning desks, funded under the prestigious PM Shri School development project. Students can now access personalized AI reading guides, digital encyclopedias, and creative writing widgets.",
-        badge: "NEP 2020",
-        priority: "Normal"
-      },
-      {
-        id: "3",
-        title: "National Reading Week: Book Review contest",
-        date: "June 25, 2026",
-        category: "Competition",
-        content: "Participate in our annual review writing competition. Stand a chance to get your reviews published in the KV Powai Web Journal and win glorious titles like 'Master Literati' and book coupons. Submit your review in the Student Creative Hub tab!",
-        badge: "Competition",
-        priority: "Normal"
-      },
-      {
-        id: "4",
-        title: "IIT Powai Guest Lecture: 'The Universe in a Library'",
-        date: "July 02, 2026",
-        category: "Activity",
-        content: "Join us for a stimulating talk in the Library Seminar Hall by Prof. Dr. S. Ramachandran from IIT Bombay (Powai). He will discuss how science, philosophy, and books expand our cosmos. Open for Standards IX to XII.",
-        badge: "Special Event",
-        priority: "Normal"
+      user: {
+        ...newUser,
+        fullName: newUser.full_name,
+        className: newUser.class_name
       }
-    ];
-    fs.writeFileSync(NOTICES_FILE, JSON.stringify(initialNotices, null, 2));
-  }
-}
-
-function readNotices(): any[] {
-  ensureNoticesFile();
-  try {
-    const data = fs.readFileSync(NOTICES_FILE, "utf-8");
-    return JSON.parse(data || "[]");
-  } catch (err) {
-    return [];
-  }
-}
-
-function writeNotices(notices: any[]) {
-  ensureNoticesFile();
-  fs.writeFileSync(NOTICES_FILE, JSON.stringify(notices, null, 2), "utf-8");
-}
-
-const SETTINGS_FILE = path.join(process.cwd(), "data", "settings.json");
-
-const STAFF_FILE = path.join(process.cwd(), "data", "staff.json");
-
-const defaultStaff = {
-  staffMembers: [
-    {
-      id: "1",
-      name: "Ashish Kumar",
-      role: "Librarian & Senior IT Head",
-      contribution: "Spearheaded the digital library initiative and cultivated a thriving reading culture among students.",
-      avatarColor: "bg-indigo-100 text-indigo-700",
-      years: "25+ Years",
-      image: "/ashish-kumar.jpeg"
-    }
-  ],
-  editorialTeam: [
-    {
-      id: "e1",
-      name: "Editorial Member",
-      role: "Editor-in-Chief",
-      contribution: "Leads the curation and editing of the library magazine.",
-      avatarColor: "bg-emerald-100 text-emerald-700",
-      years: "1+ Years",
-      image: ""
-    }
-  ]
-};
-
-function readStaff() {
-  if (fs.existsSync(STAFF_FILE)) {
-    return JSON.parse(fs.readFileSync(STAFF_FILE, "utf-8"));
-  }
-  return defaultStaff;
-}
-
-function writeStaff(data: any) {
-  fs.writeFileSync(STAFF_FILE, JSON.stringify(data, null, 2));
-}
-
-
-function ensureSettingsFile() {
-  const dir = path.dirname(SETTINGS_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  if (!fs.existsSync(SETTINGS_FILE)) {
-    const initialSettings = {
-      heroImages: []
-    };
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(initialSettings, null, 2));
-  }
-}
-
-function readSettings(): any {
-  ensureSettingsFile();
-  try {
-    const data = fs.readFileSync(SETTINGS_FILE, "utf-8");
-    return JSON.parse(data || "{}");
-  } catch (err) {
-    return { heroImages: [] };
-  }
-}
-
-function writeSettings(settings: any) {
-  ensureSettingsFile();
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf-8");
-}
-
-app.get("/api/settings/hero-images", (req, res) => {
-  try {
-    const settings = readSettings();
-    res.json(settings.heroImages || []);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load hero images" });
-  }
-});
-
-app.post("/api/settings/hero-images", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized access." });
-    }
-    const token = authHeader.split(" ")[1];
-    const session = sessions.get(token);
-    if (!session || session.expiresAt < Date.now()) {
-      return res.status(401).json({ error: "Session expired or invalid." });
-    }
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required." });
-    }
-
-    const { images } = req.body;
-    if (!Array.isArray(images)) {
-      return res.status(400).json({ error: "Images must be an array." });
-    }
-
-    const settings = readSettings();
-    settings.heroImages = images;
-    writeSettings(settings);
-    res.json(settings.heroImages);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to update hero images" });
-  }
-});
-
-app.get("/api/notices", (req, res) => {
-  try {
-    const notices = readNotices();
-    res.json(notices);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load notices" });
-  }
-});
-
-app.post("/api/notices", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized access." });
-    }
-    const token = authHeader.split(" ")[1];
-    const session = sessions.get(token);
-    if (!session || session.expiresAt < Date.now()) {
-      return res.status(401).json({ error: "Session expired or invalid." });
-    }
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required." });
-    }
-
-    const { title, date, category, content, badge, priority, imageUrl, mediaUrls } = req.body;
-    if (!title || !content) {
-      return res.status(400).json({ error: "Title and content are required." });
-    }
-
-    const notices = readNotices();
-    const newNotice = {
-      id: Date.now().toString(),
-      title,
-      date: date || new Date().toISOString().split('T')[0],
-      category: category || "General",
-      content,
-      badge: badge || "",
-      priority: priority || "Normal",
-      imageUrl: imageUrl || "",
-      mediaUrls: Array.isArray(mediaUrls) ? mediaUrls : (imageUrl ? [imageUrl] : [])
-    };
-
-    notices.unshift(newNotice);
-    writeNotices(notices);
-    res.status(201).json(newNotice);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to create notice" });
-  }
-});
-
-app.put("/api/notices/:id", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized access." });
-    }
-    const token = authHeader.split(" ")[1];
-    const session = sessions.get(token);
-    if (!session || session.expiresAt < Date.now()) {
-      return res.status(401).json({ error: "Session expired or invalid." });
-    }
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required." });
-    }
-
-    const { id } = req.params;
-    const { title, date, category, content, badge, priority, imageUrl, mediaUrls } = req.body;
-    if (!title || !content) {
-      return res.status(400).json({ error: "Title and content are required." });
-    }
-
-    const notices = readNotices();
-    const noticeIndex = notices.findIndex(n => n.id === id);
-    if (noticeIndex === -1) {
-      return res.status(404).json({ error: "Notice not found." });
-    }
-
-    notices[noticeIndex] = {
-      ...notices[noticeIndex],
-      title,
-      date: date || notices[noticeIndex].date,
-      category: category || notices[noticeIndex].category,
-      content,
-      badge: badge !== undefined ? badge : notices[noticeIndex].badge,
-      priority: priority || notices[noticeIndex].priority,
-      imageUrl: imageUrl !== undefined ? imageUrl : notices[noticeIndex].imageUrl,
-      mediaUrls: Array.isArray(mediaUrls) ? mediaUrls : notices[noticeIndex].mediaUrls || []
-    };
-
-    writeNotices(notices);
-    res.json(notices[noticeIndex]);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to update notice" });
-  }
-});
-
-app.delete("/api/notices/:id", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized access." });
-    }
-    const token = authHeader.split(" ")[1];
-    const session = sessions.get(token);
-    if (!session || session.expiresAt < Date.now()) {
-      return res.status(401).json({ error: "Session expired or invalid." });
-    }
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required." });
-    }
-
-    const { id } = req.params;
-    const notices = readNotices();
-    const updatedNotices = notices.filter(n => n.id !== id);
-    
-    if (notices.length === updatedNotices.length) {
-      return res.status(404).json({ error: "Notice not found." });
-    }
-
-    writeNotices(updatedNotices);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete notice" });
-  }
-});
-
-app.get("/api/events", (req, res) => {
-  try {
-    const events = readEvents();
-    res.json(events);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load events" });
-  }
-});
-
-app.post("/api/events", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized access." });
-    }
-    const token = authHeader.split(" ")[1];
-    const session = sessions.get(token);
-    if (!session || session.expiresAt < Date.now()) {
-      return res.status(401).json({ error: "Session expired or invalid." });
-    }
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required." });
-    }
-
-    const { title, description, imageUrl, videoUrl, mediaUrls, timestamp } = req.body;
-    if (!title || !description) {
-      return res.status(400).json({ error: "Title and description are required." });
-    }
-
-    const events = readEvents();
-    const newEvent = {
-      id: "event-" + Date.now() + "-" + Math.random().toString(36).substr(2, 4),
-      title: title.trim(),
-      description: description.trim(),
-      imageUrl: imageUrl?.trim() || null,
-      videoUrl: videoUrl?.trim() || null,
-      mediaUrls: Array.isArray(mediaUrls) ? mediaUrls : [],
-      timestamp: timestamp || new Date().toISOString()
-    };
-
-    events.unshift(newEvent);
-    writeEvents(events);
-    res.status(201).json(newEvent);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to create event" });
-  }
-});
-
-app.put("/api/events/:id", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized access." });
-    }
-    const token = authHeader.split(" ")[1];
-    const session = sessions.get(token);
-    if (!session || session.expiresAt < Date.now()) {
-      return res.status(401).json({ error: "Session expired or invalid." });
-    }
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required." });
-    }
-
-    const { id } = req.params;
-    const { title, description, imageUrl, videoUrl, mediaUrls, timestamp } = req.body;
-    
-    const events = readEvents();
-    const eventIndex = events.findIndex(e => e.id === id);
-    if (eventIndex === -1) {
-      return res.status(404).json({ error: "Event not found." });
-    }
-
-    events[eventIndex] = {
-      ...events[eventIndex],
-      title: title ? title.trim() : events[eventIndex].title,
-      description: description ? description.trim() : events[eventIndex].description,
-      imageUrl: imageUrl !== undefined ? imageUrl : events[eventIndex].imageUrl,
-      videoUrl: videoUrl !== undefined ? videoUrl : events[eventIndex].videoUrl,
-      mediaUrls: Array.isArray(mediaUrls) ? mediaUrls : events[eventIndex].mediaUrls || [],
-      timestamp: timestamp || events[eventIndex].timestamp
-    };
-
-    writeEvents(events);
-    res.json(events[eventIndex]);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to update event" });
-  }
-});
-
-app.delete("/api/events/:id", (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized access." });
-    }
-    const token = authHeader.split(" ")[1];
-    const session = sessions.get(token);
-    if (!session || session.expiresAt < Date.now()) {
-      return res.status(401).json({ error: "Session expired or invalid." });
-    }
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required." });
-    }
-
-    const { id } = req.params;
-    const events = readEvents();
-    const updatedEvents = events.filter(e => e.id !== id);
-    
-    if (events.length === updatedEvents.length) {
-      return res.status(404).json({ error: "Event not found." });
-    }
-
-    writeEvents(updatedEvents);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete event" });
-  }
-});
-
-app.post("/api/creative/image", async (req, res) => {
-  try {
-    const { prompt } = req.body;
-    const openai = getOpenAI();
-
-    const response = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      n: 1,
-      size: "1024x1024",
     });
+  } catch (err) { handleError(res, err, "Server error during registration"); }
+}));
 
-    res.json({ imageUrl: response.data[0].url });
-  } catch (error: any) {
-    console.error("Image generation failed:", error);
-    res.status(500).json({
-      error: "Unable to generate image right now.",
-      details: error.message,
-    });
-  }
-});
-
-const SOCIAL_POSTS_FILE = path.join(process.cwd(), "data", "social_posts.json");
-
-function ensureSocialPostsFile() {
-  const dir = path.dirname(SOCIAL_POSTS_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  if (!fs.existsSync(SOCIAL_POSTS_FILE)) {
-    // Seed with empty array by default or basic system welcome post
-    fs.writeFileSync(SOCIAL_POSTS_FILE, JSON.stringify([]));
-  }
-}
-
-function readSocialPosts(): any[] {
-  ensureSocialPostsFile();
+app.post("/api/auth/login", asyncHandler(async (req, res, next) => {
   try {
-    const data = fs.readFileSync(SOCIAL_POSTS_FILE, "utf-8");
-    return JSON.parse(data || "[]");
-  } catch (err) {
-    return [];
-  }
-}
+    const { email, usernameOrEmail, password } = req.body;
+    const identifier = email || usernameOrEmail;
 
-function writeSocialPosts(posts: any[]) {
-  ensureSocialPostsFile();
-  fs.writeFileSync(SOCIAL_POSTS_FILE, JSON.stringify(posts, null, 2), "utf-8");
-}
-
-const QUIZ_LINKS_FILE = path.join(process.cwd(), "data", "quiz_links.json");
-function ensureQuizLinksFile() {
-  const dir = path.dirname(QUIZ_LINKS_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(QUIZ_LINKS_FILE)) fs.writeFileSync(QUIZ_LINKS_FILE, JSON.stringify([]));
-}
-function readQuizLinks(): any[] {
-  ensureQuizLinksFile();
-  try { return JSON.parse(fs.readFileSync(QUIZ_LINKS_FILE, "utf-8") || "[]"); }
-  catch { return []; }
-}
-function writeQuizLinks(links: any[]) {
-  ensureQuizLinksFile();
-  fs.writeFileSync(QUIZ_LINKS_FILE, JSON.stringify(links, null, 2), "utf-8");
-}
-
-app.get("/api/quiz-links", (req, res) => {
-  res.json(readQuizLinks());
-});
-
-app.post("/api/quiz-links", (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) return res.status(401).json({ error: "Unauthorized" });
-    const session = sessions.get(token);
-    if (!session) return res.status(401).json({ error: "Invalid token" });
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    const isLibraryAdmin = user && (user.role === "admin" || user.fullName === "Ashish Kumar" || user.email === "ashishkumar.librarian@gmail.com");
-    if (!isLibraryAdmin) return res.status(403).json({ error: "Admin required" });
-
-    const { title, url } = req.body;
-    if (!title || !url) return res.status(400).json({ error: "Title and URL required" });
-    const links = readQuizLinks();
-    links.push({ id: "quiz-" + Date.now(), title, url });
-    writeQuizLinks(links);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to add link" });
-  }
-});
-
-app.delete("/api/quiz-links/:id", (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) return res.status(401).json({ error: "Unauthorized" });
-    const session = sessions.get(token);
-    if (!session) return res.status(401).json({ error: "Invalid token" });
-    const users = readUsers();
-    const user = users.find(u => u.id === session.userId);
-    const isLibraryAdmin = user && (user.role === "admin" || user.fullName === "Ashish Kumar" || user.email === "ashishkumar.librarian@gmail.com");
-    if (!isLibraryAdmin) return res.status(403).json({ error: "Admin required" });
-
-    const { id } = req.params;
-    let links = readQuizLinks();
-    links = links.filter(l => l.id !== id);
-    writeQuizLinks(links);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete link" });
-  }
-});
-
-// Get all posts on the wall
-app.get("/api/social/posts", (req, res) => {
-  try {
-    const posts = readSocialPosts();
-    res.json(posts);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load library posts" });
-  }
-});
-
-// Create a new post
-app.post("/api/social/posts", (req, res) => {
-  try {
-    const { studentName, className, bookTitle, author, rating, content, tags } = req.body;
-    if (!bookTitle || !content) {
-      return res.status(400).json({ error: "Book title and post content are required." });
+    if (!identifier) {
+      return res.status(400).json({ error: "Please enter your username or email address" });
+    }
+    if (!password) {
+      return res.status(400).json({ error: "Please enter your password" });
     }
 
-    const posts = readSocialPosts();
-    const newPost = {
-      id: "post-" + Date.now() + "-" + Math.random().toString(36).substr(2, 4),
-      studentName: (studentName || "Guest Scholar").trim(),
-      className: (className || "Class V-A").trim(),
-      avatarSeed: (studentName || "Guest").toLowerCase().replace(/\s+/g, ""),
-      bookTitle: bookTitle.trim(),
-      author: (author || "Unknown").trim(),
-      rating: Number(rating) || 5,
-      content: content.trim(),
-      timestamp: new Date().toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' }) + " (Indian Standard Time)",
-      likes: 0,
-      commentsCount: 0,
-      tags: tags && Array.isArray(tags) ? tags : ["KVPowaiReads"],
-      comments: []
-    };
+    let targetEmail = identifier;
 
-    posts.unshift(newPost);
-    writeSocialPosts(posts);
-    res.status(201).json(newPost);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to add post to library wall" });
-  }
-});
+    // Resolve email if username was provided (doesn't contain '@')
+    if (!targetEmail.includes("@")) {
+      const { data: userProfile, error: lookupError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('username', targetEmail)
+        .maybeSingle();
 
-// Delete a post
-app.delete("/api/social/posts/:id", (req, res) => {
-  try {
-    const { id } = req.params;
-    const posts = readSocialPosts();
-    const updated = posts.filter(p => p.id !== id);
-    writeSocialPosts(updated);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete post" });
-  }
-});
-
-// Edit a post
-app.put("/api/social/posts/:id", (req, res) => {
-  try {
-    const { id } = req.params;
-    const { content, rating } = req.body;
-    const posts = readSocialPosts();
-    const post = posts.find(p => p.id === id);
-    if (!post) {
-      return res.status(404).json({ error: "Post not found" });
-    }
-    post.content = content || post.content;
-    post.rating = rating !== undefined ? rating : post.rating;
-    writeSocialPosts(posts);
-    res.json(post);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to edit post" });
-  }
-});
-
-// Toggle post like count
-app.post("/api/social/posts/:id/like", (req, res) => {
-  try {
-    const { id } = req.params;
-    const { increment } = req.body;
-    const posts = readSocialPosts();
-    const post = posts.find(p => p.id === id);
-    if (!post) {
-      return res.status(404).json({ error: "Post not found." });
-    }
-
-    if (increment) {
-      post.likes = (post.likes || 0) + 1;
-    } else {
-      post.likes = Math.max(0, (post.likes || 0) - 1);
-    }
-
-    writeSocialPosts(posts);
-    res.json(post);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to update likes" });
-  }
-});
-
-// Add comment to a post
-app.post("/api/social/posts/:id/comment", (req, res) => {
-  try {
-    const { id } = req.params;
-    const { comment, authorName, authorAvatar } = req.body;
-    if (!comment || (!comment.trim && !comment.text)) {
-      return res.status(400).json({ error: "Comment content is required." });
-    }
-
-    const posts = readSocialPosts();
-    const post = posts.find(p => p.id === id);
-    if (!post) {
-      return res.status(404).json({ error: "Post not found." });
-    }
-
-    if (!post.comments) post.comments = [];
-    const newComment = typeof comment === 'string' 
-      ? { id: Date.now().toString() + Math.random(), text: comment.trim(), authorName: authorName || "Unknown", authorAvatar: authorAvatar || "" }
-      : { id: Date.now().toString() + Math.random(), text: comment.text, authorName: comment.authorName || authorName || "Unknown", authorAvatar: comment.authorAvatar || authorAvatar || "" };
-    
-    post.comments.push(newComment);
-    post.commentsCount = post.comments.length;
-
-    writeSocialPosts(posts);
-    res.json(post);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to add comment." });
-  }
-});
-
-app.delete("/api/social/posts/:postId/comment/:commentId", (req, res) => {
-  try {
-    const { postId, commentId } = req.params;
-    const posts = readSocialPosts();
-    const post = posts.find(p => p.id === postId);
-    if (!post) return res.status(404).json({ error: "Post not found." });
-    
-    post.comments = (post.comments || []).filter(c => {
-      if (typeof c === 'string') return false;
-      return c.id !== commentId;
-    });
-    post.commentsCount = post.comments.length;
-    
-    writeSocialPosts(posts);
-    res.json(post);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete comment." });
-  }
-});
-
-app.put("/api/social/posts/:postId/comment/:commentId", (req, res) => {
-  try {
-    const { postId, commentId } = req.params;
-    const { text } = req.body;
-    const posts = readSocialPosts();
-    const post = posts.find(p => p.id === postId);
-    if (!post) return res.status(404).json({ error: "Post not found." });
-    
-    const comment = (post.comments || []).find(c => typeof c !== 'string' && c.id === commentId);
-    if (comment) {
-      comment.text = text;
-    }
-    
-    writeSocialPosts(posts);
-    res.json(post);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to edit comment." });
-  }
-});
-
-
-
-// ----------------------------------------------------------------------------
-// Readers Club Endpoints
-// ----------------------------------------------------------------------------
-const READERS_CLUB_FILE = path.join(process.cwd(), "data", "readersClub.json");
-
-if (!fs.existsSync(path.join(process.cwd(), "data"))) {
-  fs.mkdirSync(path.join(process.cwd(), "data"), { recursive: true });
-}
-if (!fs.existsSync(READERS_CLUB_FILE)) {
-  fs.writeFileSync(READERS_CLUB_FILE, JSON.stringify({ folders: [] }), "utf-8");
-}
-
-app.get("/api/readers-club", (req, res) => {
-  try {
-    const data = JSON.parse(fs.readFileSync(READERS_CLUB_FILE, "utf-8"));
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to read readers club data" });
-  }
-});
-
-app.post("/api/readers-club", (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-
-  const decoded = { userId: "admin-1" };
-  const user = { role: "admin" };
-  if (!user || user.role !== "admin") {
-    return res.status(403).json({ error: "Admin access required" });
-  }
-
-  try {
-    fs.writeFileSync(READERS_CLUB_FILE, JSON.stringify(req.body, null, 2), "utf-8");
-    res.json({ message: "Saved successfully" });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to save data" });
-  }
-});
-
-
-// ----------------------------------------------------------------------------
-// Magazines Endpoints
-// ----------------------------------------------------------------------------
-const MAGAZINES_FILE = path.join(process.cwd(), "data", "magazines.json");
-
-function ensureMagazinesFile() {
-  if (!fs.existsSync(path.join(process.cwd(), "data"))) {
-    fs.mkdirSync(path.join(process.cwd(), "data"), { recursive: true });
-  }
-  if (!fs.existsSync(MAGAZINES_FILE)) {
-    const initialMagazines = [
-      {
-        id: "mag-1",
-        title: "Vol. 1, Issue 4 - Winter 2024",
-        description: "Year-end reflections, sports achievements, and the grand winter gala.",
-        coverColor: "bg-indigo-600",
-        date: "May 2026",
-        readLink: "https://online.fliphtml5.com/caravan76/CARAVAN-QUATERLY-MAGAZINE-2026/#p=1"
-      },
-      {
-        id: "mag-2",
-        title: "Vol. 1, Issue 3 - Autumn 2024",
-        description: "Festivals, technology updates, and book reviews by the literature club.",
-        coverColor: "bg-amber-600",
-        date: "October 2024"
-      },
-      {
-        id: "mag-3",
-        title: "Vol. 1, Issue 2 - Monsoon 2024",
-        description: "Celebrating the rains with creative writing and environmental awareness.",
-        coverColor: "bg-emerald-600",
-        date: "July 2024"
-      },
-      {
-        id: "mag-4",
-        title: "Vol. 1, Issue 1 - Spring 2024",
-        description: "Our inaugural issue featuring student poetry, art, and science essays.",
-        coverColor: "bg-rose-600",
-        date: "April 2024"
+      if (lookupError) {
+        return res.status(500).json({ error: "Database error during username lookup", details: lookupError.message });
       }
-    ];
-    fs.writeFileSync(MAGAZINES_FILE, JSON.stringify(initialMagazines, null, 2), "utf-8");
-  }
-}
+      if (!userProfile) {
+        return res.status(404).json({ error: `Username "${targetEmail}" does not exist` });
+      }
+      targetEmail = userProfile.email;
+    }
 
-function readMagazines() {
-  ensureMagazinesFile();
-  return JSON.parse(fs.readFileSync(MAGAZINES_FILE, "utf-8"));
-}
+    // Authenticate with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: targetEmail,
+      password
+    });
 
-function writeMagazines(data: any) {
-  ensureMagazinesFile();
-  fs.writeFileSync(MAGAZINES_FILE, JSON.stringify(data, null, 2), "utf-8");
-}
+    if (authError || !authData.user) {
+      return res.status(401).json({ error: authError?.message || "Invalid email/username or password" });
+    }
 
-app.get("/api/magazines", (req, res) => {
-  res.json(readMagazines());
-});
+    // Fetch user profile from public.users table to read role and details
+    const { data: user, error: dbError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authData.user.id)
+      .maybeSingle();
 
-app.post("/api/magazines", (req, res) => {
+    if (dbError) {
+      return res.status(500).json({ error: "Database error retrieving user profile", details: dbError.message });
+    }
+
+    let finalUser = user;
+    if (!finalUser) {
+      // Auto-create public profile if missing (self-healing)
+      const newUser = {
+        id: authData.user.id,
+        email: targetEmail,
+        username: authData.user.user_metadata?.username || targetEmail.split('@')[0],
+        full_name: authData.user.user_metadata?.full_name || "User",
+        class_name: authData.user.user_metadata?.class_name || "",
+        role: "student",
+        created_at: new Date().toISOString()
+      };
+      
+      const { error: insertError } = await supabase.from('users').insert(newUser);
+      if (insertError) {
+        return res.status(500).json({ error: "Failed to self-heal missing profile", details: insertError.message });
+      }
+      
+      const { data: createdUser, error: refetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+        
+      if (refetchError || !createdUser) {
+        return res.status(500).json({ error: "Failed to retrieve self-healed profile" });
+      }
+      finalUser = createdUser;
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    sessions.set(token, finalUser.id);
+
+    res.json({
+      token,
+      user: {
+        ...finalUser,
+        fullName: finalUser.full_name,
+        className: finalUser.class_name
+      }
+    });
+  } catch (err) { handleError(res, err, "Server error during login"); }
+}));
+
+app.get("/api/auth/me", asyncHandler(async (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  const user = { role: "admin" };
-  if (!user || user.role !== "admin") return res.status(403).json({ error: "Admin required" });
-
-  const body = req.body;
-  const newMag = {
-    id: "mag-" + Date.now(),
-    ...body
-  };
-  const mags = readMagazines();
-  mags.unshift(newMag);
-  writeMagazines(mags);
-  res.json(newMag);
-});
-
-app.put("/api/magazines/:id", (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  const user = { role: "admin" };
-  if (!user || user.role !== "admin") return res.status(403).json({ error: "Admin required" });
-
-  const mags = readMagazines();
-  const index = mags.findIndex((m: any) => m.id === req.params.id);
-  if (index === -1) return res.status(404).json({ error: "Not found" });
+  if (!token || !sessions.has(token)) return res.status(401).json({ error: "Unauthorized" });
   
-  mags[index] = { ...mags[index], ...req.body };
-  writeMagazines(mags);
-  res.json(mags[index]);
-});
+  const userId = sessions.get(token);
+  const { data: user, error } = await supabase.from('users').select('*').eq('id', userId).single();
+  
+  if (error || !user) return res.status(401).json({ error: "User not found" });
 
-app.delete("/api/magazines/:id", (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-  const user = { role: "admin" };
-  if (!user || user.role !== "admin") return res.status(403).json({ error: "Admin required" });
-
-  const mags = readMagazines();
-  const newMags = mags.filter((m: any) => m.id !== req.params.id);
-  writeMagazines(newMags);
-  res.json({ success: true });
-});
-
-
-// ----------------------------------------------------------------------------
-// Static Assets & Vite Integration
-// ----------------------------------------------------------------------------
-
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+  let avatarUrl = user.avatar_url || "";
+  if (avatarUrl === undefined || !('avatar_url' in user)) {
+    // Fallback: fetch from auth metadata
+    const { data: { user: authUser }, error: authErr } = await supabase.auth.admin.getUserById(userId);
+    if (!authErr && authUser) {
+      avatarUrl = authUser.user_metadata?.avatar_url || "";
+    }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[PM SHRI KV IIT POWAI LIBRARY API] Server running on http://localhost:${PORT}`);
-  });
-}
+  res.json({ user: { ...user, avatarUrl, fullName: user.full_name, className: user.class_name } });
+}));
 
-startServer();
+app.put("/api/user/profile", asyncHandler(async (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token || !sessions.has(token)) return res.status(401).json({ error: "Unauthorized" });
+  
+  const userId = sessions.get(token);
+  const { fullName, className, avatarUrl, password } = req.body;
+
+  if (password && password.trim() !== "") {
+    const { error: pwdError } = await supabase.auth.admin.updateUserById(userId, {
+      password: password
+    });
+    if (pwdError) {
+      return res.status(400).json({ error: "Password update failed: " + pwdError.message });
+    }
+  }
+  
+  let updateData: any = { 
+    full_name: fullName, 
+    class_name: className, 
+    avatar_url: avatarUrl 
+  };
+  
+  let { data: user, error } = await supabase.from('users').update(updateData).eq('id', userId).select().single();
+  
+  if (error && (error.message?.includes("avatar_url") || error.code === "PGRST204" || error.code === "PGRST100")) {
+    console.log("avatar_url column not found in public.users, falling back to auth user metadata");
+    // Fallback: update only full_name and class_name in public.users
+    const { data: userOnly, error: userErr } = await supabase.from('users').update({ 
+      full_name: fullName, 
+      class_name: className 
+    }).eq('id', userId).select().single();
+    
+    if (userErr) return handleError(res, userErr, "Failed to update profile");
+    
+    // Update auth metadata
+    await supabase.auth.admin.updateUserById(userId, {
+      user_metadata: { avatar_url: avatarUrl }
+    });
+    
+    user = { ...userOnly, avatar_url: avatarUrl };
+  } else if (error) {
+    return handleError(res, error, "Failed to update profile");
+  }
+  
+  res.json({ message: "Profile updated successfully", user: { ...user, avatarUrl: user.avatar_url || avatarUrl || "", fullName: user.full_name, className: user.class_name } });
+}));
+
+// --- EVENTS ---
+app.get("/api/events", asyncHandler(async (req, res, next) => {
+  const { data, error } = await supabase.from('events').select('*').order('timestamp', { ascending: false });
+  if (error) return handleError(res, error, "Failed to get events");
+  const mapped = data.map((e: any) => ({ ...e, imageUrl: e.image_url, videoUrl: e.video_url, mediaUrls: e.media_urls }));
+  res.json(mapped);
+}));
+
+app.post("/api/events", asyncHandler(async (req, res, next) => {
+  const { title, description, imageUrl, videoUrl, mediaUrls, timestamp } = req.body;
+  const newEvent = { id: crypto.randomUUID(), title, description, image_url: imageUrl, video_url: videoUrl, media_urls: mediaUrls, timestamp, created_at: new Date().toISOString() };
+  const { error } = await supabase.from('events').insert(newEvent);
+  if (error) return handleError(res, error, "Failed to create event");
+  res.json(newEvent);
+}));
+
+app.put("/api/events/:id", asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { title, description, imageUrl, videoUrl, mediaUrls, timestamp } = req.body;
+  const { error } = await supabase.from('events').update({ title, description, image_url: imageUrl, video_url: videoUrl, media_urls: mediaUrls, timestamp }).eq('id', id);
+  if (error) return handleError(res, error, "Failed to update event");
+  res.json({ message: "Updated" });
+}));
+
+app.delete("/api/events/:id", asyncHandler(async (req, res, next) => {
+  const { error } = await supabase.from('events').delete().eq('id', req.params.id);
+  if (error) return handleError(res, error, "Failed to delete event");
+  res.json({ message: "Deleted" });
+}));
+
+// --- NOTICES ---
+app.get("/api/notices", asyncHandler(async (req, res, next) => {
+  const { data, error } = await supabase.from('notices').select('*').order('date', { ascending: false });
+  if (error) return handleError(res, error, "Failed to get notices");
+  const mapped = data.map((n: any) => ({ ...n, imageUrl: n.image_url, mediaUrls: n.media_urls }));
+  res.json(mapped);
+}));
+
+app.post("/api/notices", asyncHandler(async (req, res, next) => {
+  const { title, date, category, content, badge, priority, imageUrl, mediaUrls } = req.body;
+  const newNotice = { id: crypto.randomUUID(), title, date, category, content, badge, priority, image_url: imageUrl, media_urls: mediaUrls, created_at: new Date().toISOString() };
+  const { error } = await supabase.from('notices').insert(newNotice);
+  if (error) return handleError(res, error, "Failed to create notice");
+  res.json(newNotice);
+}));
+
+app.put("/api/notices/:id", asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { title, date, category, content, badge, priority, imageUrl, mediaUrls } = req.body;
+  const { error } = await supabase.from('notices').update({ title, date, category, content, badge, priority, image_url: imageUrl, media_urls: mediaUrls }).eq('id', id);
+  if (error) return handleError(res, error, "Failed to update notice");
+  res.json({ message: "Updated" });
+}));
+
+app.delete("/api/notices/:id", asyncHandler(async (req, res, next) => {
+  const { error } = await supabase.from('notices').delete().eq('id', req.params.id);
+  if (error) return handleError(res, error, "Failed to delete notice");
+  res.json({ message: "Deleted" });
+}));
+
+// --- SETTINGS / HERO IMAGES & LIBRARY CONFIG ---
+app.get("/api/settings/hero-images", asyncHandler(async (req, res, next) => {
+  const { data, error } = await supabase
+    .from('settings_hero_images')
+    .select('*')
+    .neq('id', '00000000-0000-0000-0000-000000000000');
+  
+  if (error) return handleError(res, error, "Failed to get hero images");
+  
+  const urls = (data || []).map((row: any) => row.url);
+  res.json(urls);
+}));
+
+app.post("/api/settings/hero-images", asyncHandler(async (req, res, next) => {
+  const { images } = req.body;
+  const targetImages = images || [];
+
+  // Clear existing welcome hero images
+  await supabase
+    .from('settings_hero_images')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000');
+
+  if (targetImages.length > 0) {
+    const inserts = targetImages.map((url: string) => ({
+      id: crypto.randomUUID(),
+      url,
+      caption: "Welcome Slide"
+    }));
+    const { error } = await supabase.from('settings_hero_images').insert(inserts);
+    if (error) return handleError(res, error, "Failed to update hero images");
+  }
+  
+  res.json({ success: true });
+}));
+
+app.get("/api/settings/library", asyncHandler(async (req, res, next) => {
+  const { data, error } = await supabase
+    .from('settings_hero_images')
+    .select('*')
+    .eq('id', '00000000-0000-0000-0000-000000000000')
+    .maybeSingle();
+
+  const defaultSettings = {
+    logoUrl: "",
+    name: "PM SHRI SCHOOL",
+    tag: "IIT POWAI SECTOR",
+    headerTitle: "KV IIT Powai Digital Library Hub"
+  };
+
+  if (error || !data) {
+    return res.json(defaultSettings);
+  }
+
+  try {
+    const meta = JSON.parse(data.caption || "{}");
+    res.json({
+      logoUrl: data.url || "",
+      name: meta.name || defaultSettings.name,
+      tag: meta.tag || defaultSettings.tag,
+      headerTitle: meta.headerTitle || defaultSettings.headerTitle
+    });
+  } catch (err) {
+    res.json(defaultSettings);
+  }
+}));
+
+app.put("/api/settings/library", asyncHandler(async (req, res, next) => {
+  const { logoUrl, name, tag, headerTitle } = req.body;
+  
+  const captionValue = JSON.stringify({ name, tag, headerTitle });
+  
+  const { error } = await supabase
+    .from('settings_hero_images')
+    .upsert({
+      id: '00000000-0000-0000-0000-000000000000',
+      url: logoUrl || "",
+      caption: captionValue
+    });
+
+  if (error) return handleError(res, error, "Failed to update library settings");
+  
+  res.json({ logoUrl, name, tag, headerTitle });
+}));
+
+// --- STAFF ---
+app.get("/api/settings/staff", asyncHandler(async (req, res, next) => {
+  const { data, error } = await supabase.from('staff_members').select('*');
+  if (error) return handleError(res, error, "Failed to get staff");
+  
+  const staffMembers = (data || []).filter((s: any) => !s.is_editorial).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    role: s.role,
+    contribution: s.contribution,
+    avatarColor: s.avatar_color,
+    years: s.years,
+    image: s.image
+  }));
+  const editorialTeam = (data || []).filter((s: any) => s.is_editorial).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    role: s.role,
+    contribution: s.contribution,
+    avatarColor: s.avatar_color,
+    years: s.years,
+    image: s.image
+  }));
+  res.json({ staffMembers, editorialTeam });
+}));
+
+app.put("/api/settings/staff", asyncHandler(async (req, res, next) => {
+  const { staffMembers, editorialTeam } = req.body;
+  
+  // delete all existing rows
+  await supabase.from('staff_members').delete().neq('id', '0');
+  
+  const staffInserts = (staffMembers || []).map((s: any) => ({
+    id: s.id || crypto.randomUUID(),
+    name: s.name,
+    role: s.role,
+    contribution: s.contribution,
+    avatar_color: s.avatarColor || "bg-indigo-100 text-indigo-700",
+    years: s.years || "",
+    image: s.image || "",
+    is_editorial: false
+  }));
+  
+  const editorialInserts = (editorialTeam || []).map((s: any) => ({
+    id: s.id || crypto.randomUUID(),
+    name: s.name,
+    role: s.role,
+    contribution: s.contribution,
+    avatar_color: s.avatarColor || "bg-emerald-100 text-emerald-700",
+    years: s.years || "",
+    image: s.image || "",
+    is_editorial: true
+  }));
+  
+  const allInserts = [...staffInserts, ...editorialInserts];
+  if (allInserts.length > 0) {
+    const { error } = await supabase.from('staff_members').insert(allInserts);
+    if (error) return handleError(res, error, "Failed to save staff members");
+  }
+  res.json({ success: true });
+}));
+
+// --- QUIZ LINKS ---
+app.get("/api/quiz-links", asyncHandler(async (req, res, next) => {
+  const { data, error } = await supabase.from('quiz_links').select('*');
+  if (error) return handleError(res, error, "Failed to get quiz links");
+  res.json(data);
+}));
+
+app.post("/api/quiz-links", asyncHandler(async (req, res, next) => {
+  const { title, url } = req.body;
+  const newLink = { id: crypto.randomUUID(), title, url, created_at: new Date().toISOString() };
+  const { error } = await supabase.from('quiz_links').insert(newLink);
+  if (error) return handleError(res, error, "Failed to add link");
+  res.json(newLink);
+}));
+
+app.delete("/api/quiz-links/:id", asyncHandler(async (req, res, next) => {
+  const { error } = await supabase.from('quiz_links').delete().eq('id', req.params.id);
+  if (error) return handleError(res, error, "Failed to delete link");
+  res.json({ message: "Deleted" });
+}));
+
+// --- MAGAZINES ---
+app.get("/api/magazines", asyncHandler(async (req, res, next) => {
+  const { data, error } = await supabase.from('magazines').select('*').order('date', { ascending: false });
+  if (error) return handleError(res, error, "Failed to get magazines");
+  const mapped = data.map((m: any) => ({ ...m, coverColor: m.cover_color, coverImage: m.cover_image, readLink: m.read_link }));
+  res.json(mapped);
+}));
+
+app.post("/api/magazines", asyncHandler(async (req, res, next) => {
+  const { title, description, coverColor, coverImage, date, readLink } = req.body;
+  const newMag = { id: crypto.randomUUID(), title, description, cover_color: coverColor, cover_image: coverImage, date, read_link: readLink, created_at: new Date().toISOString() };
+  const { error } = await supabase.from('magazines').insert(newMag);
+  if (error) return handleError(res, error, "Failed to add magazine");
+  res.json(newMag);
+}));
+
+app.put("/api/magazines/:id", asyncHandler(async (req, res, next) => {
+  const { title, description, coverColor, coverImage, date, readLink } = req.body;
+  const { error } = await supabase.from('magazines').update({ title, description, cover_color: coverColor, cover_image: coverImage, date, read_link: readLink }).eq('id', req.params.id);
+  if (error) return handleError(res, error, "Failed to update magazine");
+  res.json({ message: "Updated" });
+}));
+
+app.delete("/api/magazines/:id", asyncHandler(async (req, res, next) => {
+  const { error } = await supabase.from('magazines').delete().eq('id', req.params.id);
+  if (error) return handleError(res, error, "Failed to delete magazine");
+  res.json({ message: "Deleted" });
+}));
+
+// --- READERS CLUB ---
+app.get("/api/readers-club", asyncHandler(async (req, res, next) => {
+  const { data: folders, error: fError } = await supabase.from('readers_club_folders').select('*');
+  const { data: members, error: mError } = await supabase.from('readers_club_members').select('*');
+  if (fError || mError) return handleError(res, fError || mError, "Failed to get readers club");
+  
+  const mappedFolders = folders?.map((f: any) => {
+    const folderMembers = (members || []).filter((m: any) => m.folder_id === f.id).map((m: any) => ({
+      ...m, avatarColor: m.avatar_color
+    }));
+    return { ...f, members: folderMembers };
+  }) || [];
+  res.json({ folders: mappedFolders });
+}));
+
+app.post("/api/readers-club", asyncHandler(async (req, res, next) => {
+  const { folders } = req.body;
+  await supabase.from('readers_club_members').delete().neq('id', '0');
+  await supabase.from('readers_club_folders').delete().neq('id', '0');
+  
+  for (const f of folders) {
+    await supabase.from('readers_club_folders').insert({ id: f.id, name: f.name, color: f.color, logo: f.logo });
+    if (f.members && f.members.length > 0) {
+      const mappedMembers = f.members.map((m: any) => ({
+        id: m.id || crypto.randomUUID(), 
+        folder_id: f.id, 
+        name: m.name, 
+        role: m.role, 
+        contribution: m.contribution, 
+        grade: m.grade || "", 
+        avatar_color: m.avatarColor || "bg-blue-100 text-blue-700", 
+        image: m.image || ""
+      }));
+      await supabase.from('readers_club_members').insert(mappedMembers);
+    }
+  }
+  res.json({ success: true });
+}));
+
+// --- SOCIAL POSTS ---
+app.get("/api/social/posts", asyncHandler(async (req, res, next) => {
+  try {
+    const { data, error } = await supabase.from('social_posts').select('*').order('timestamp', { ascending: false });
+    if (error) return handleError(res, error, "Failed to get posts");
+    
+    const mapped = (data || []).map((p: any) => ({
+      ...p,
+      studentName: p.student_name,
+      className: p.class_name,
+      avatarSeed: p.avatar_seed,
+      bookTitle: p.book_title,
+      commentsCount: p.comments_count,
+      photoUrl: p.photo_url,
+      likedBy: p.liked_by || []
+    }));
+    res.json(mapped);
+  } catch (err) {
+    handleError(res, err, "Failed to fetch posts from database");
+  }
+}));
+
+app.post("/api/social/posts", asyncHandler(async (req, res, next) => {
+  const { studentName, className, avatarSeed, bookTitle, author, rating, content, tags, photoUrl } = req.body;
+  const newPost = {
+    id: crypto.randomUUID(),
+    student_name: studentName,
+    class_name: className,
+    avatar_seed: avatarSeed,
+    book_title: bookTitle,
+    author,
+    rating,
+    content,
+    timestamp: new Date().toISOString(),
+    likes: 0,
+    comments_count: 0,
+    tags,
+    photo_url: photoUrl,
+    liked_by: [],
+    comments: []
+  };
+  const { error } = await supabase.from('social_posts').insert(newPost);
+  if (error) return handleError(res, error, "Failed to add post");
+  res.json(newPost);
+}));
+
+app.post("/api/social/posts/:id/like", asyncHandler(async (req, res, next) => {
+  const { userId } = req.body;
+  const { data: post, error } = await supabase.from('social_posts').select('*').eq('id', req.params.id).single();
+  if (error || !post) return res.status(404).json({ error: "Post not found" });
+  
+  const likedBy = post.liked_by || [];
+  let newLikes = post.likes;
+  
+  if (likedBy.includes(userId)) {
+    likedBy.splice(likedBy.indexOf(userId), 1);
+    newLikes = Math.max(0, newLikes - 1);
+  } else {
+    likedBy.push(userId);
+    newLikes++;
+  }
+  
+  await supabase.from('social_posts').update({ likes: newLikes, liked_by: likedBy }).eq('id', req.params.id);
+  res.json({ likes: newLikes, isLiked: likedBy.includes(userId) });
+}));
+
+app.post("/api/social/posts/:id/comment", asyncHandler(async (req, res, next) => {
+  const { comment, authorName, authorAvatar } = req.body;
+  const { data: post, error } = await supabase.from('social_posts').select('*').eq('id', req.params.id).single();
+  if (error || !post) return res.status(404).json({ error: "Post not found" });
+  
+  const comments = post.comments || [];
+  const newComment = { id: crypto.randomUUID(), text: comment.text || comment, author: authorName, avatar: authorAvatar, timestamp: new Date().toISOString() };
+  comments.push(newComment);
+  
+  await supabase.from('social_posts').update({ comments, comments_count: comments.length }).eq('id', req.params.id);
+  res.json({ message: "Comment added", comment: newComment });
+}));
+
+app.delete("/api/social/posts/:id", asyncHandler(async (req, res, next) => {
+  await supabase.from('social_posts').delete().eq('id', req.params.id);
+  res.json({ message: "Deleted" });
+}));
+
+// --- AI ROUTES ---
+app.post("/api/story/generate", asyncHandler(async (req, res, next) => {
+  try {
+    const { character, setting, genre, ageGroup, previousStory } = req.body;
+    let prompt = `Write a short, engaging story chapter for a ${ageGroup} child. 
+    Genre: ${genre}. Main Character: ${character}. Setting: ${setting}.`;
+    if (previousStory) prompt += `
+
+Previous story context: ${previousStory}`;
+    prompt += `
+Provide exactly two output sections separated by "---CHOICES---". First section is the story (2-3 paragraphs). Second section is exactly 2 choices for what happens next, bulleted with '- '.`;
+
+    const result = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt });
+    const responseText = result.text || "";
+    const parts = responseText.split("---CHOICES---");
+    const storySegment = parts[0]?.trim() || "The story continues...";
+    const choices = parts[1]?.split('\n').filter(line => line.trim().startsWith('-')).map(line => line.replace(/^-/, '').trim()) || ["Turn left", "Turn right"];
+    
+    res.json({ storySegment, choices, illustrationPrompt: `A children's book illustration about ${character} in ${setting}, ${genre} style, vibrant colors.` });
+  } catch (err) { handleError(res, err, "AI error"); }
+}));
+
+app.post("/api/books/recommend", asyncHandler(async (req, res, next) => {
+  try {
+    const { interests, age, readingLevel } = req.body;
+    const prompt = `Recommend 3 books for a ${age}-year-old student interested in: ${interests}. Reading level: ${readingLevel}.
+    Format as JSON array of objects with keys: title, author, genre, description, whyRecommended, difficulty, funActivity. No markdown blocks, just raw JSON array.`;
+    
+    const result = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt });
+    let text = result.text || "[]";
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    res.json({ recommendations: JSON.parse(text) });
+  } catch (err) { handleError(res, err, "AI error"); }
+}));
+
+app.post("/api/creative/write", asyncHandler(async (req, res, next) => {
+  try {
+    const { topic, format, tone, length } = req.body;
+    const prompt = `Write a ${length} ${format} about ${topic} in a ${tone} tone.`;
+    const result = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt });
+    res.json({ result: result.text });
+  } catch (err) { handleError(res, err, "AI error"); }
+}));
+
+app.post("/api/creative/image", asyncHandler(async (req, res, next) => {
+  try {
+    const { prompt, style } = req.body;
+    const response = await openai.images.generate({ model: "dall-e-3", prompt: `${style} style: ${prompt}`, n: 1, size: "1024x1024" });
+    res.json({ imageUrl: response.data[0].url });
+  } catch (err) { handleError(res, err, "AI error"); }
+}));
+
+app.get("/api/test-env-vars", (req, res) => {
+  res.json({
+    envKeys: Object.keys(process.env),
+    httpProxy: process.env.http_proxy || process.env.HTTP_PROXY,
+    httpsProxy: process.env.https_proxy || process.env.HTTPS_PROXY,
+    noProxy: process.env.no_proxy || process.env.NO_PROXY,
+  });
+});
+
+
+// Global error handler
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
+
+
+
+// VITE SERVER
+if (process.env.NODE_ENV !== "production") {
+  createViteServer({ server: { middlewareMode: true }, appType: "spa" }).then(vite => {
+    app.use(vite.middlewares);
+    app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
+  });
+} else {
+  const distPath = path.join(process.cwd(), "dist");
+  app.use(express.static(distPath));
+  app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+  app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
+}

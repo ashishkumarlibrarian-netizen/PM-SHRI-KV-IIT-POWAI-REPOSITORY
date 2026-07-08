@@ -21,6 +21,16 @@
       ]
     },
     "allowImportingTsExtensions": true,
-    "noEmit": true
-  }
+    "noEmit": true,
+    "esModuleInterop": true
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "*.cjs",
+    "*.js",
+    "test_db.cjs",
+    "ai_routes.ts",
+    "new_server.ts"
+  ]
 }
