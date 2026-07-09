@@ -107,10 +107,8 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
 
   const handleDeleteFolder = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("Are you sure you want to delete this folder?")) {
-      const updated = folders.filter(f => f.id !== id);
-      await saveData(updated);
-    }
+    const updated = folders.filter(f => f.id !== id);
+    await saveData(updated);
   };
 
   const handleAddMember = async () => {
@@ -127,7 +125,7 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
   };
 
   const handleDeleteMember = async (idx: number) => {
-    if (!activeFolderId || !confirm("Delete this member?")) return;
+    if (!activeFolderId) return;
     const updated = folders.map(f => {
       if (f.id === activeFolderId) {
         return { ...f, members: f.members.filter((_: any, i: number) => i !== idx) };
@@ -139,12 +137,17 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
 
   const handleFolderLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log("FILE SELECTED", file);
     if (file) {
       try {
+        console.log("STATE BEFORE", newFolderLogo);
+        console.log("UPLOAD START");
         const publicUrl = await uploadFile(file, 'gallery');
+        console.log("UPLOAD RESULT", publicUrl);
         setNewFolderLogo(publicUrl);
+        console.log("STATE AFTER", publicUrl);
       } catch (err: any) {
-        console.error("Upload failed:", err);
+        console.error("Upload error caught:", err);
         alert(`Upload failed: ${err.message || err}`);
       }
     }
@@ -152,12 +155,20 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log("FILE SELECTED", file);
     if (file) {
       try {
+        console.log("STATE BEFORE", newMember);
+        console.log("UPLOAD START");
         const publicUrl = await uploadFile(file, 'profiles');
-        setNewMember(prev => ({ ...prev, image: publicUrl }));
+        console.log("UPLOAD RESULT", publicUrl);
+        setNewMember(prev => {
+          const updated = { ...prev, image: publicUrl };
+          console.log("STATE AFTER", updated);
+          return updated;
+        });
       } catch (err: any) {
-        console.error("Upload failed:", err);
+        console.error("Upload error caught:", err);
         alert(`Upload failed: ${err.message || err}`);
       }
     }
@@ -225,7 +236,12 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Folder Logo</label>
-                  <input type="file" accept="image/*" onChange={handleFolderLogoUpload} className="w-full text-sm text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                  <div className="flex items-center gap-2">
+                    <input type="file" accept="image/*" onChange={handleFolderLogoUpload} className="w-full text-sm text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                    {newFolderLogo && (
+                      <img src={newFolderLogo} alt="Logo preview" className="w-10 h-10 rounded-lg object-cover border border-slate-200" />
+                    )}
+                  </div>
                 </div>
                 <button 
                   onClick={handleAddFolder}
@@ -318,7 +334,12 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 mb-1">Profile Photo (Logo)</label>
-                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                    <div className="flex items-center gap-2">
+                      <input type="file" accept="image/*" onChange={handleLogoUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                      {newMember.image && (
+                        <img src={newMember.image} alt="Avatar preview" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                      )}
+                    </div>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-semibold text-slate-500 mb-1">Contribution</label>

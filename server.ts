@@ -27,8 +27,17 @@ app.use(express.json({ limit: "50mb" }));
 
 // Initialize Supabase client for backend (using service role to bypass RLS)
 const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://zsdaszwqwpjywmltlhps.supabase.co";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_secret_LOt_hYVdVrFXe4ptcNH12A_3RIywl7e";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "sb_secret_LOt_hYVdVrFXe4ptcNH12A_3RIywl7e";
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Dedicated Service Role client with persistSession disabled to bypass RLS and prevent auth state pollution across requests
+const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false
+  }
+});
 
 // AI Setup
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "dummy" });
@@ -60,9 +69,17 @@ app.post("/api/upload", upload.single("file"), asyncHandler(async (req: any, res
   const fileExt = req.file.originalname.split('.').pop() || 'jpg';
   const fileName = `${crypto.randomUUID()}.${fileExt}`;
   
-  console.log(`Backend uploading file: ${fileName} to bucket: ${bucket}`);
+  console.log("SUPABASE URL =", supabaseUrl);
+  console.log("=== DIAGNOSTIC LOGS FOR SUPABASE_SERVICE_ROLE_KEY ===");
+  console.log("1. Does process.env.SUPABASE_SERVICE_ROLE_KEY exist?", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+  console.log("2. Length of process.env.SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
+  console.log("3. Is using environment variable or hardcoded fallback?", process.env.SUPABASE_SERVICE_ROLE_KEY ? "Environment Variable" : "Hardcoded Fallback");
+  console.log("4. First 20 characters of the key being used:", supabaseKey.substring(0, 20));
+  console.log("=====================================================");
+  console.log("Bucket =", bucket);
+  console.log("Uploading using service client...");
   
-  const { data, error } = await supabase.storage
+  const { data, error } = await supabaseAdmin.storage
     .from(bucket)
     .upload(fileName, req.file.buffer, {
       contentType: req.file.mimetype,
@@ -71,15 +88,32 @@ app.post("/api/upload", upload.single("file"), asyncHandler(async (req: any, res
     
   if (error) {
     console.error(`Upload error for bucket ${bucket}:`, error);
-    return handleError(res, error, `Failed to upload to bucket ${bucket}`);
+    return res.status(500).json({
+      message: error.message,
+      error: error.name,
+      statusCode: (error as any).statusCode || (error as any).status,
+      details: (error as any).details || (error as any).cause,
+      hint: (error as any).hint,
+      fullError: error
+    });
   }
   
-  const { data: { publicUrl } } = supabase.storage
+  const { data: { publicUrl } } = supabaseAdmin.storage
     .from(bucket)
     .getPublicUrl(fileName);
     
   res.json({ publicUrl });
 }));
+
+app.get("/api/diag-env", (req: any, res: any) => {
+  res.json({
+    exists: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    length: process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0,
+    usingFallback: !process.env.SUPABASE_SERVICE_ROLE_KEY,
+    keyPrefix: supabaseKey.substring(0, 20),
+    supabaseUrl,
+  });
+});
 
 // --- AUTH & USERS ---
 app.post("/api/auth/register", asyncHandler(async (req, res, next) => {
@@ -253,6 +287,7 @@ app.get("/api/auth/me", asyncHandler(async (req, res, next) => {
 }));
 
 app.put("/api/user/profile", asyncHandler(async (req, res, next) => {
+  console.log("[SERVER] PUT /api/user/profile - req.body:", JSON.stringify(req.body, null, 2));
   const token = req.headers.authorization?.split(" ")[1];
   if (!token || !sessions.has(token)) return res.status(401).json({ error: "Unauthorized" });
   
@@ -273,16 +308,19 @@ app.put("/api/user/profile", asyncHandler(async (req, res, next) => {
     class_name: className, 
     avatar_url: avatarUrl 
   };
+  console.log("[SERVER] Supabase update payload (users):", JSON.stringify(updateData, null, 2));
   
   let { data: user, error } = await supabase.from('users').update(updateData).eq('id', userId).select().single();
   
   if (error && (error.message?.includes("avatar_url") || error.code === "PGRST204" || error.code === "PGRST100")) {
     console.log("avatar_url column not found in public.users, falling back to auth user metadata");
     // Fallback: update only full_name and class_name in public.users
-    const { data: userOnly, error: userErr } = await supabase.from('users').update({ 
+    const fallbackPayload = { 
       full_name: fullName, 
       class_name: className 
-    }).eq('id', userId).select().single();
+    };
+    console.log("[SERVER] Supabase fallback user update:", JSON.stringify(fallbackPayload, null, 2));
+    const { data: userOnly, error: userErr } = await supabase.from('users').update(fallbackPayload).eq('id', userId).select().single();
     
     if (userErr) return handleError(res, userErr, "Failed to update profile");
     
@@ -296,6 +334,8 @@ app.put("/api/user/profile", asyncHandler(async (req, res, next) => {
     return handleError(res, error, "Failed to update profile");
   }
   
+  const { data: dbRow } = await supabase.from('users').select('*').eq('id', userId).single();
+  console.log("[SERVER] Database user row after update (profile):", JSON.stringify(dbRow, null, 2));
   res.json({ message: "Profile updated successfully", user: { ...user, avatarUrl: user.avatar_url || avatarUrl || "", fullName: user.full_name, className: user.class_name } });
 }));
 
@@ -308,18 +348,27 @@ app.get("/api/events", asyncHandler(async (req, res, next) => {
 }));
 
 app.post("/api/events", asyncHandler(async (req, res, next) => {
+  console.log("[SERVER] POST /api/events - req.body:", JSON.stringify(req.body, null, 2));
   const { title, description, imageUrl, videoUrl, mediaUrls, timestamp } = req.body;
   const newEvent = { id: crypto.randomUUID(), title, description, image_url: imageUrl, video_url: videoUrl, media_urls: mediaUrls, timestamp, created_at: new Date().toISOString() };
+  console.log("[SERVER] Supabase insert payload (events):", JSON.stringify(newEvent, null, 2));
   const { error } = await supabase.from('events').insert(newEvent);
   if (error) return handleError(res, error, "Failed to create event");
+  const { data: dbRow } = await supabase.from('events').select('*').eq('id', newEvent.id).single();
+  console.log("[SERVER] Database row after insert (events):", JSON.stringify(dbRow, null, 2));
   res.json(newEvent);
 }));
 
 app.put("/api/events/:id", asyncHandler(async (req, res, next) => {
   const { id } = req.params;
+  console.log("[SERVER] PUT /api/events/:id - req.body:", JSON.stringify(req.body, null, 2));
   const { title, description, imageUrl, videoUrl, mediaUrls, timestamp } = req.body;
-  const { error } = await supabase.from('events').update({ title, description, image_url: imageUrl, video_url: videoUrl, media_urls: mediaUrls, timestamp }).eq('id', id);
+  const updatePayload = { title, description, image_url: imageUrl, video_url: videoUrl, media_urls: mediaUrls, timestamp };
+  console.log("[SERVER] Supabase update payload (events):", JSON.stringify(updatePayload, null, 2));
+  const { error } = await supabase.from('events').update(updatePayload).eq('id', id);
   if (error) return handleError(res, error, "Failed to update event");
+  const { data: dbRow } = await supabase.from('events').select('*').eq('id', id).single();
+  console.log("[SERVER] Database row after update (events):", JSON.stringify(dbRow, null, 2));
   res.json({ message: "Updated" });
 }));
 
@@ -338,18 +387,27 @@ app.get("/api/notices", asyncHandler(async (req, res, next) => {
 }));
 
 app.post("/api/notices", asyncHandler(async (req, res, next) => {
+  console.log("[SERVER] POST /api/notices - req.body:", JSON.stringify(req.body, null, 2));
   const { title, date, category, content, badge, priority, imageUrl, mediaUrls } = req.body;
   const newNotice = { id: crypto.randomUUID(), title, date, category, content, badge, priority, image_url: imageUrl, media_urls: mediaUrls, created_at: new Date().toISOString() };
+  console.log("[SERVER] Supabase insert payload (notices):", JSON.stringify(newNotice, null, 2));
   const { error } = await supabase.from('notices').insert(newNotice);
   if (error) return handleError(res, error, "Failed to create notice");
+  const { data: dbRow } = await supabase.from('notices').select('*').eq('id', newNotice.id).single();
+  console.log("[SERVER] Database row after insert (notices):", JSON.stringify(dbRow, null, 2));
   res.json(newNotice);
 }));
 
 app.put("/api/notices/:id", asyncHandler(async (req, res, next) => {
   const { id } = req.params;
+  console.log("[SERVER] PUT /api/notices/:id - req.body:", JSON.stringify(req.body, null, 2));
   const { title, date, category, content, badge, priority, imageUrl, mediaUrls } = req.body;
-  const { error } = await supabase.from('notices').update({ title, date, category, content, badge, priority, image_url: imageUrl, media_urls: mediaUrls }).eq('id', id);
+  const updatePayload = { title, date, category, content, badge, priority, image_url: imageUrl, media_urls: mediaUrls };
+  console.log("[SERVER] Supabase update payload (notices):", JSON.stringify(updatePayload, null, 2));
+  const { error } = await supabase.from('notices').update(updatePayload).eq('id', id);
   if (error) return handleError(res, error, "Failed to update notice");
+  const { data: dbRow } = await supabase.from('notices').select('*').eq('id', id).single();
+  console.log("[SERVER] Database row after update (notices):", JSON.stringify(dbRow, null, 2));
   res.json({ message: "Updated" });
 }));
 
@@ -373,6 +431,7 @@ app.get("/api/settings/hero-images", asyncHandler(async (req, res, next) => {
 }));
 
 app.post("/api/settings/hero-images", asyncHandler(async (req, res, next) => {
+  console.log("[SERVER] POST /api/settings/hero-images - req.body:", JSON.stringify(req.body, null, 2));
   const { images } = req.body;
   const targetImages = images || [];
 
@@ -388,10 +447,13 @@ app.post("/api/settings/hero-images", asyncHandler(async (req, res, next) => {
       url,
       caption: "Welcome Slide"
     }));
+    console.log("[SERVER] Supabase insert payload (hero-images):", JSON.stringify(inserts, null, 2));
     const { error } = await supabase.from('settings_hero_images').insert(inserts);
     if (error) return handleError(res, error, "Failed to update hero images");
   }
   
+  const { data: dbRows } = await supabase.from('settings_hero_images').select('*').neq('id', '00000000-0000-0000-0000-000000000000');
+  console.log("[SERVER] Database rows after insert (hero-images):", JSON.stringify(dbRows, null, 2));
   res.json({ success: true });
 }));
 
@@ -471,10 +533,11 @@ app.get("/api/settings/staff", asyncHandler(async (req, res, next) => {
 }));
 
 app.put("/api/settings/staff", asyncHandler(async (req, res, next) => {
+  console.log("[SERVER] PUT /api/settings/staff - req.body:", JSON.stringify(req.body, null, 2));
   const { staffMembers, editorialTeam } = req.body;
   
   // delete all existing rows
-  await supabase.from('staff_members').delete().neq('id', '0');
+  await supabase.from('staff_members').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   
   const staffInserts = (staffMembers || []).map((s: any) => ({
     id: s.id || crypto.randomUUID(),
@@ -499,10 +562,14 @@ app.put("/api/settings/staff", asyncHandler(async (req, res, next) => {
   }));
   
   const allInserts = [...staffInserts, ...editorialInserts];
+  console.log("[SERVER] Supabase insert payload (staff):", JSON.stringify(allInserts, null, 2));
   if (allInserts.length > 0) {
     const { error } = await supabase.from('staff_members').insert(allInserts);
     if (error) return handleError(res, error, "Failed to save staff members");
   }
+  
+  const { data: dbRows } = await supabase.from('staff_members').select('*');
+  console.log("[SERVER] Database rows after insert (staff):", JSON.stringify(dbRows, null, 2));
   res.json({ success: true });
 }));
 
@@ -536,17 +603,27 @@ app.get("/api/magazines", asyncHandler(async (req, res, next) => {
 }));
 
 app.post("/api/magazines", asyncHandler(async (req, res, next) => {
+  console.log("[SERVER] POST /api/magazines - req.body:", JSON.stringify(req.body, null, 2));
   const { title, description, coverColor, coverImage, date, readLink } = req.body;
   const newMag = { id: crypto.randomUUID(), title, description, cover_color: coverColor, cover_image: coverImage, date, read_link: readLink, created_at: new Date().toISOString() };
+  console.log("[SERVER] Supabase insert payload (magazines):", JSON.stringify(newMag, null, 2));
   const { error } = await supabase.from('magazines').insert(newMag);
   if (error) return handleError(res, error, "Failed to add magazine");
+  const { data: dbRow } = await supabase.from('magazines').select('*').eq('id', newMag.id).single();
+  console.log("[SERVER] Database row after insert (magazines):", JSON.stringify(dbRow, null, 2));
   res.json(newMag);
 }));
 
 app.put("/api/magazines/:id", asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  console.log("[SERVER] PUT /api/magazines/:id - req.body:", JSON.stringify(req.body, null, 2));
   const { title, description, coverColor, coverImage, date, readLink } = req.body;
-  const { error } = await supabase.from('magazines').update({ title, description, cover_color: coverColor, cover_image: coverImage, date, read_link: readLink }).eq('id', req.params.id);
+  const updatePayload = { title, description, cover_color: coverColor, cover_image: coverImage, date, read_link: readLink };
+  console.log("[SERVER] Supabase update payload (magazines):", JSON.stringify(updatePayload, null, 2));
+  const { error } = await supabase.from('magazines').update(updatePayload).eq('id', id);
   if (error) return handleError(res, error, "Failed to update magazine");
+  const { data: dbRow } = await supabase.from('magazines').select('*').eq('id', id).single();
+  console.log("[SERVER] Database row after update (magazines):", JSON.stringify(dbRow, null, 2));
   res.json({ message: "Updated" });
 }));
 
@@ -572,12 +649,20 @@ app.get("/api/readers-club", asyncHandler(async (req, res, next) => {
 }));
 
 app.post("/api/readers-club", asyncHandler(async (req, res, next) => {
+  console.log("[SERVER] POST /api/readers-club - req.body:", JSON.stringify(req.body, null, 2));
   const { folders } = req.body;
-  await supabase.from('readers_club_members').delete().neq('id', '0');
-  await supabase.from('readers_club_folders').delete().neq('id', '0');
+  await supabase.from('readers_club_members').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await supabase.from('readers_club_folders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   
   for (const f of folders) {
-    await supabase.from('readers_club_folders').insert({ id: f.id, name: f.name, color: f.color, logo: f.logo });
+    const folderPayload = { id: f.id, name: f.name, color: f.color, logo: f.logo };
+    console.log("[SERVER] Supabase insert payload (readers_club_folders):", JSON.stringify(folderPayload, null, 2));
+    const { error: folderError } = await supabase.from('readers_club_folders').insert(folderPayload);
+    if (folderError) {
+      console.error("[SERVER ERROR] readers_club_folders insert failed:", folderError);
+      return handleError(res, folderError, "Failed to insert readers club folder");
+    }
+    
     if (f.members && f.members.length > 0) {
       const mappedMembers = f.members.map((m: any) => ({
         id: m.id || crypto.randomUUID(), 
@@ -589,9 +674,19 @@ app.post("/api/readers-club", asyncHandler(async (req, res, next) => {
         avatar_color: m.avatarColor || "bg-blue-100 text-blue-700", 
         image: m.image || ""
       }));
-      await supabase.from('readers_club_members').insert(mappedMembers);
+      console.log("[SERVER] Supabase insert payload (readers_club_members):", JSON.stringify(mappedMembers, null, 2));
+      const { error: memberError } = await supabase.from('readers_club_members').insert(mappedMembers);
+      if (memberError) {
+        console.error("[SERVER ERROR] readers_club_members insert failed:", memberError);
+        return handleError(res, memberError, "Failed to insert readers club members");
+      }
     }
   }
+  
+  const { data: dbFolders } = await supabase.from('readers_club_folders').select('*');
+  const { data: dbMembers } = await supabase.from('readers_club_members').select('*');
+  console.log("[SERVER] Database folders after insert (readers-club):", JSON.stringify(dbFolders, null, 2));
+  console.log("[SERVER] Database members after insert (readers-club):", JSON.stringify(dbMembers, null, 2));
   res.json({ success: true });
 }));
 

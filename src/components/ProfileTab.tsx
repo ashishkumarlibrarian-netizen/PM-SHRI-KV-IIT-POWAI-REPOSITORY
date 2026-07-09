@@ -42,12 +42,17 @@ export default function ProfileTab({ currentUser, onUpdate }: { currentUser: any
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log("FILE SELECTED", file);
     if (file) {
       try {
+        console.log("STATE BEFORE", avatarUrl);
+        console.log("UPLOAD START");
         const publicUrl = await uploadFile(file, 'profiles');
+        console.log("UPLOAD RESULT", publicUrl);
         setAvatarUrl(publicUrl);
+        console.log("STATE AFTER", publicUrl);
       } catch (err: any) {
-        console.error("Upload failed:", err);
+        console.error("Upload error caught:", err);
         alert(`Upload failed: ${err.message || err}`);
       }
     }

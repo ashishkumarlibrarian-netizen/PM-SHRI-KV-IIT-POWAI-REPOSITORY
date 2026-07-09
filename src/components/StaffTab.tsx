@@ -55,14 +55,19 @@ export default function StaffTab({ currentUser }: { currentUser: any }) {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, listType: 'staffMembers'|'editorialTeam', index: number) => {
     const file = e.target.files?.[0];
+    console.log("FILE SELECTED", file);
     if (file) {
       try {
+        console.log("STATE BEFORE", editData);
+        console.log("UPLOAD START");
         const publicUrl = await uploadFile(file, 'staff');
+        console.log("UPLOAD RESULT", publicUrl);
         const newData = JSON.parse(JSON.stringify(editData));
         newData[listType][index].image = publicUrl;
+        console.log("STATE AFTER", newData);
         setEditData(newData);
       } catch (err: any) {
-        console.error("Upload failed:", err);
+        console.error("Upload error caught:", err);
         alert(`Upload failed: ${err.message || err}`);
       }
     }

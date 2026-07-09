@@ -211,16 +211,21 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
     if (!files.length) return;
     
     for (const file of files) {
+      console.log("FILE SELECTED", file);
       if (file && file.type.startsWith("image/")) {
         try {
+          console.log("STATE BEFORE", mediaUrls);
+          console.log("UPLOAD START");
           const publicUrl = await uploadFile(file, 'notices');
+          console.log("UPLOAD RESULT", publicUrl);
           setMediaUrls(prev => {
              const newUrls = [...prev, publicUrl];
              if (newUrls.length === 1) setImageUrl(publicUrl);
+             console.log("STATE AFTER", newUrls);
              return newUrls;
           });
         } catch (err: any) {
-          console.error("Upload failed:", err);
+          console.error("Upload error caught:", err);
           alert(`Upload failed: ${err.message || err}`);
         }
       }
@@ -816,12 +821,20 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                     const files = Array.from(e.target.files || []) as File[];
                     if (!files.length) return;
                     for (const file of files) {
+                      console.log("FILE SELECTED", file);
                       if (file && file.type.startsWith("image/")) {
                         try {
+                          console.log("STATE BEFORE", editingHeroImages);
+                          console.log("UPLOAD START");
                           const publicUrl = await uploadFile(file, 'bulletin');
-                          setEditingHeroImages(prev => [...prev, publicUrl]);
+                          console.log("UPLOAD RESULT", publicUrl);
+                          setEditingHeroImages(prev => {
+                            const updated = [...prev, publicUrl];
+                            console.log("STATE AFTER", updated);
+                            return updated;
+                          });
                         } catch (err: any) {
-                          console.error("Upload failed:", err);
+                          console.error("Upload error caught:", err);
                           alert(`Upload failed: ${err.message || err}`);
                         }
                       }

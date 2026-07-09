@@ -98,11 +98,19 @@ export default function EventsTab({ currentUser }: EventsTabProps) {
     if (!files) return;
     
     for (const file of Array.from(files) as File[]) {
+      console.log("FILE SELECTED", file);
       try {
+        console.log("STATE BEFORE", mediaUrls);
+        console.log("UPLOAD START");
         const publicUrl = await uploadFile(file, 'events');
-        setMediaUrls(prev => [...prev, publicUrl]);
+        console.log("UPLOAD RESULT", publicUrl);
+        setMediaUrls(prev => {
+          const updated = [...prev, publicUrl];
+          console.log("STATE AFTER", updated);
+          return updated;
+        });
       } catch (err: any) {
-        console.error("Upload failed:", err);
+        console.error("Upload error caught:", err);
         alert(`Upload failed: ${err.message || err}`);
       }
     }

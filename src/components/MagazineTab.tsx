@@ -81,7 +81,6 @@ export default function MagazineTab({ isAdmin }: { isAdmin?: boolean }) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this issue?")) return;
     
     const token = localStorage.getItem("kv_library_token");
     try {
@@ -92,7 +91,10 @@ export default function MagazineTab({ isAdmin }: { isAdmin?: boolean }) {
         }
       });
       if (res.ok) {
-        setIssues(prev => prev.filter(i => i.id !== id));
+        await fetchMagazines();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Failed to delete magazine: ${errorData.details || errorData.error || 'Server error'}`);
       }
     } catch (err) {
       console.error(err);
@@ -127,12 +129,20 @@ export default function MagazineTab({ isAdmin }: { isAdmin?: boolean }) {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log("FILE SELECTED", file);
     if (file) {
       try {
+        console.log("STATE BEFORE", formData);
+        console.log("UPLOAD START");
         const publicUrl = await uploadFile(file, 'magazines');
-        setFormData(prev => ({ ...prev, coverImage: publicUrl }));
+        console.log("UPLOAD RESULT", publicUrl);
+        setFormData(prev => {
+          const updated = { ...prev, coverImage: publicUrl };
+          console.log("STATE AFTER", updated);
+          return updated;
+        });
       } catch (err: any) {
-        console.error("Upload failed:", err);
+        console.error("Upload error caught:", err);
         alert(`Upload failed: ${err.message || err}`);
       }
     }
