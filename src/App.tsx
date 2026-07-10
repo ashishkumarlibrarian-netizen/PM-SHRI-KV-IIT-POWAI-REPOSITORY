@@ -51,6 +51,7 @@ import {
   Wrench
 , Music } from "lucide-react";
 import WelcomeTab from "./components/WelcomeTab";
+import AdminTab from "./components/AdminTab";
 import ProfileTab from "./components/ProfileTab";
 import MenuTab from "./components/MenuTab";
 import MagazineTab from "./components/MagazineTab";
@@ -224,12 +225,19 @@ export default function App() {
             setStudentName(savedUser.fullName);
             setStudentClass(savedUser.className);
             
-            // Validate session
+            // Validate session and fetch latest profile fields (including database-backed avatarUrl)
             const res = await fetch("/api/auth/me", {
               headers: { "Authorization": `Bearer ${savedToken}` }
             });
             if (!res.ok) {
               throw new Error("Invalid session");
+            }
+            const data = await res.json();
+            if (data && data.user) {
+              setCurrentUser(data.user);
+              setStudentName(data.user.fullName);
+              setStudentClass(data.user.className);
+              localStorage.setItem("kv_library_user", JSON.stringify(data.user));
             }
           } catch (e) {
             setCurrentUser(null);
@@ -318,6 +326,8 @@ export default function App() {
   const [newPostAuthor, setNewPostAuthor] = useState("");
   const [newPostRating, setNewPostRating] = useState(5);
   const [newPostTags, setNewPostTags] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
+  const [postError, setPostError] = useState("");
   const [studentName, setStudentName] = useState("Guest Scholar");
   const [studentClass, setStudentClass] = useState("Class V-A");
   const [postLikesMap, setPostLikesMap] = useState<Record<string, boolean>>({});
@@ -638,7 +648,7 @@ export default function App() {
   };
 
   // Social Wall Functions
-  const handleAddPost = (e: React.FormEvent) => {
+  const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostContent.trim() || !newPostBookTitle.trim()) return;
 
@@ -646,33 +656,45 @@ export default function App() {
       ? newPostTags.split(",").map((t) => t.trim().replace(/^#/, ""))
       : ["KVPowaiReads"];
 
-    fetch("/api/social/posts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        studentName: studentName.trim() || "Young Scholar",
-        className: studentClass || "Class X-A",
-        bookTitle: newPostBookTitle.trim(),
-        author: newPostAuthor.trim() || "Unknown Author",
-        rating: newPostRating,
-        content: newPostContent.trim(),
-        tags: tagsArray,
-      }),
-    })
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error("Failed to create post");
-      })
-      .then((createdPost) => {
-        setSocialPosts((prev) => [createdPost, ...prev]);
-        setNewPostContent("");
-        setNewPostBookTitle("");
-        setNewPostAuthor("");
-        setNewPostTags("");
-      })
-      .catch((err) => {
-        console.error("Failed to post: ", err);
+    setIsPosting(true);
+    setPostError("");
+
+    try {
+      const res = await fetch("/api/social/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentName: studentName.trim() || "Young Scholar",
+          className: studentClass || "Class X-A",
+          avatarSeed: currentUser?.avatarUrl,
+          photoUrl: currentUser?.avatarUrl,
+          bookTitle: newPostBookTitle.trim(),
+          author: newPostAuthor.trim() || "Unknown Author",
+          rating: newPostRating,
+          content: newPostContent.trim(),
+          tags: tagsArray,
+        }),
       });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.details || "Failed to create post");
+      
+      setSocialPosts((prev) => [data, ...prev]);
+      setNewPostContent("");
+      setNewPostBookTitle("");
+      setNewPostAuthor("");
+      setNewPostTags("");
+      
+      // Auto-refresh the feed just in case
+      const refreshRes = await fetch("/api/social/posts");
+      if (refreshRes.ok) setSocialPosts(await refreshRes.json());
+      
+    } catch (err: any) {
+      console.error("Failed to post: ", err);
+      setPostError(err.message || "Failed to post");
+    } finally {
+      setIsPosting(false);
+    }
   };
 
   const handleDeletePost = (id: string) => {
@@ -975,9 +997,10 @@ export default function App() {
               ]
             },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-4 h-4" /> },
-            { id: "staff", label: "Staff", icon: <Users className="w-4 h-4" /> },
             { id: "events", label: "Library Events", icon: <Calendar className="w-4 h-4" /> },
-            { id: "menu", label: "Menu", icon: <Menu className="w-4 h-4" /> }
+            { id: "staff", label: "Staff", icon: <Users className="w-4 h-4" /> },
+            { id: "menu", label: "Menu", icon: <Menu className="w-4 h-4" /> },
+            ...(currentUser?.role === "admin" ? [{ id: "admin", label: "Admin Hub", icon: <Wrench className="w-4 h-4" /> }] : [])
           ].map((tab) => (
             <div key={tab.id} className="relative group">
               <button
@@ -1073,12 +1096,11 @@ export default function App() {
                     ✓ Registered Student
                   </span>
                 </div>
-                <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-700 flex-shrink-0 bg-slate-800 flex items-center justify-center text-slate-400">
-                  {currentUser?.avatarUrl ? (
-                    <img src={currentUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-700 flex-shrink-0 bg-slate-800 flex items-center justify-center text-slate-400 relative">
+                  {currentUser?.avatarUrl && (
+                    <img src={currentUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover absolute inset-0" onError={(e) => { e.currentTarget.style.display='none'; }} />
                   )}
+                  <User className="w-4 h-4" />
                 </div>
               </div>
               <button
@@ -1171,9 +1193,10 @@ export default function App() {
               ]
             },
             { id: "readers-club", label: "Reader's Club", icon: <Users className="w-3.5 h-3.5" /> },
-            { id: "staff", label: "Staff", icon: <Users className="w-3.5 h-3.5" /> },
             { id: "events", label: "Events", icon: <Calendar className="w-3.5 h-3.5" /> },
-            { id: "menu", label: "Menu", icon: <Menu className="w-3.5 h-3.5" /> }
+            { id: "staff", label: "Staff", icon: <Users className="w-3.5 h-3.5" /> },
+            { id: "menu", label: "Menu", icon: <Menu className="w-3.5 h-3.5" /> },
+            ...(currentUser?.role === "admin" ? [{ id: "admin", label: "Admin Hub", icon: <Wrench className="w-3.5 h-3.5" /> }] : [])
           ].map((tab) => (
             <div key={tab.id} className="relative group flex-shrink-0">
               <button
@@ -2935,8 +2958,7 @@ export default function App() {
               <ProfileTab currentUser={currentUser} onUpdate={(u) => { setCurrentUser(u); setStudentName(u.fullName); localStorage.setItem("kv_library_user", JSON.stringify(u)); }} />
             </motion.div>
           )}
-          {activeTab === "menu" && (
-
+                    {activeTab === "menu" && (
             <motion.div
               key="menu"
               initial={{ opacity: 0, y: 15, scale: 0.98 }}
@@ -2945,6 +2967,18 @@ export default function App() {
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
               <MenuTab />
+            </motion.div>
+          )}
+
+          {activeTab === "admin" && currentUser?.role === "admin" && (
+            <motion.div
+              key="admin"
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <AdminTab />
             </motion.div>
           )}
 

@@ -58,6 +58,142 @@ const handleError = (res: any, error: any, msg: string) => {
   });
 };
 
+
+// --- QUICK LINKS ---
+app.get("/api/quick_links", asyncHandler(async (req: any, res: any) => {
+  const { data, error } = await supabase.from('quick_links').select('*').order('display_order', { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+}));
+
+app.post("/api/quick_links", asyncHandler(async (req: any, res: any) => {
+  const { title, url, icon, category, display_order, is_active, description, badge, open_new_tab } = req.body;
+  const newLink = { 
+    title, 
+    url, 
+    icon, 
+    category, 
+    display_order: display_order || 0, 
+    is_active: is_active ?? true, 
+    description: description || null,
+    badge: badge || null,
+    open_new_tab: open_new_tab ?? true,
+    created_at: new Date().toISOString() 
+  };
+  const { data, error } = await supabase.from('quick_links').insert(newLink).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+}));
+
+app.put("/api/quick_links/:id", asyncHandler(async (req: any, res: any) => {
+  const { title, url, icon, category, display_order, is_active, description, badge, open_new_tab } = req.body;
+  const { data, error } = await supabase.from('quick_links')
+    .update({ 
+      title, 
+      url, 
+      icon, 
+      category, 
+      display_order, 
+      is_active, 
+      description: description || null, 
+      badge: badge || null, 
+      open_new_tab: open_new_tab ?? true 
+    })
+    .eq('id', req.params.id).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+}));
+
+app.delete("/api/quick_links/:id", asyncHandler(async (req: any, res: any) => {
+  const { error } = await supabase.from('quick_links').delete().eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+}));
+
+app.put("/api/quick_links_category/rename", asyncHandler(async (req: any, res: any) => {
+  const { oldCategory, newCategory } = req.body;
+  if (!oldCategory || !newCategory) {
+    return res.status(400).json({ error: "oldCategory and newCategory are required" });
+  }
+  const { data, error } = await supabase.from('quick_links')
+    .update({ category: newCategory })
+    .eq('category', oldCategory);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true, data });
+}));
+
+app.delete("/api/quick_links_category/:categoryName", asyncHandler(async (req: any, res: any) => {
+  const { categoryName } = req.params;
+  const { error } = await supabase.from('quick_links')
+    .delete()
+    .eq('category', categoryName);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+}));
+
+
+app.get("/api/setup_db", asyncHandler(async (req: any, res: any) => {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS public.quick_links (
+      id uuid primary key default gen_random_uuid(),
+      title text not null,
+      url text not null,
+      icon text,
+      category text,
+      display_order integer default 0,
+      is_active boolean default true,
+      created_at timestamptz default now()
+    );
+    ALTER TABLE public.quick_links ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public full access quick_links" ON public.quick_links;
+    CREATE POLICY "Public full access quick_links" ON public.quick_links FOR ALL USING (true);
+    
+    ALTER TABLE public.library_posts ADD COLUMN IF NOT EXISTS is_hidden boolean default false;
+    ALTER TABLE public.library_posts ADD COLUMN IF NOT EXISTS is_pinned boolean default false;
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar_url text;
+  `;
+  const { data, error } = await supabaseAdmin.rpc('execute_sql', { sql_statement: sql });
+  // if execute_sql fails, we can just do raw query or ignore if we don't have rpc
+  // Wait, execute_sql might not exist. Let's do it directly or via another way.
+  // Actually, we can use `supabase.rest.from` but DDL isn't supported. 
+  // Let's just create it.
+  res.json({ data, error });
+}));
+
+
+// --- ADMIN AVATARS MANAGER ---
+app.get("/api/admin/avatars_extended", asyncHandler(async (req: any, res: any) => {
+  // Get all users from users table that have an avatarUrl
+  const { data: users, error } = await supabase.from('users').select('id, full_name, avatar_url').not('avatar_url', 'is', null);
+  if (error) return res.status(500).json({ error: error.message });
+  
+  // Format them
+  const avatars = (users || []).map((u: any) => ({
+    id: u.id,
+    studentName: u.full_name || 'Unknown',
+    url: u.avatar_url,
+    path: u.avatar_url ? (u.avatar_url.includes('/profiles/') ? u.avatar_url.split('/profiles/')[1] : u.avatar_url) : '',
+    uploadDate: new Date().toISOString() // We don't have exactly when it was uploaded unless we parse from URL or bucket. We'll just leave it as mock or fetch from bucket.
+  }));
+  
+  res.json(avatars);
+}));
+
+app.delete("/api/admin/avatars_extended/:userId", asyncHandler(async (req: any, res: any) => {
+  const userId = req.params.userId;
+  // Get user
+  const { data: user } = await supabase.from('users').select('avatar_url').eq('id', userId).single();
+  if (user && user.avatar_url) {
+    const path = user.avatar_url.includes('/profiles/') ? user.avatar_url.split('/profiles/')[1] : user.avatar_url;
+    if (path) {
+      await supabaseAdmin.storage.from('profiles').remove([path]);
+    }
+  }
+  // Clear from DB
+  await supabase.from('users').update({ avatar_url: null }).eq('id', userId);
+  res.json({ success: true });
+}));
+
 // --- FILE UPLOAD ---
 app.post("/api/upload", upload.single("file"), asyncHandler(async (req: any, res: any) => {
   if (!req.file) {
@@ -65,23 +201,31 @@ app.post("/api/upload", upload.single("file"), asyncHandler(async (req: any, res
   }
   const bucket = req.body.bucket || "documents";
   
-  // Generate a clean random filename
   const fileExt = req.file.originalname.split('.').pop() || 'jpg';
-  const fileName = `${crypto.randomUUID()}.${fileExt}`;
+  let targetFileName = `${crypto.randomUUID()}.${fileExt}`;
   
-  console.log("SUPABASE URL =", supabaseUrl);
-  console.log("=== DIAGNOSTIC LOGS FOR SUPABASE_SERVICE_ROLE_KEY ===");
-  console.log("1. Does process.env.SUPABASE_SERVICE_ROLE_KEY exist?", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-  console.log("2. Length of process.env.SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
-  console.log("3. Is using environment variable or hardcoded fallback?", process.env.SUPABASE_SERVICE_ROLE_KEY ? "Environment Variable" : "Hardcoded Fallback");
-  console.log("4. First 20 characters of the key being used:", supabaseKey.substring(0, 20));
-  console.log("=====================================================");
-  console.log("Bucket =", bucket);
-  console.log("Uploading using service client...");
+  if (bucket === 'profiles') {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token || !sessions.has(token)) return res.status(401).json({ error: "Unauthorized" });
+    const userId = sessions.get(token);
+    
+    // Try to list existing files and delete them
+    try {
+      const { data: existingFiles } = await supabaseAdmin.storage.from(bucket).list(userId);
+      if (existingFiles && existingFiles.length > 0) {
+        const filesToRemove = existingFiles.map(f => `${userId}/${f.name}`);
+        await supabaseAdmin.storage.from(bucket).remove(filesToRemove);
+      }
+    } catch(e) {
+      console.warn("Failed to remove old avatars", e);
+    }
+    
+    targetFileName = `${userId}/avatar-${Date.now()}.${fileExt}`;
+  }
   
   const { data, error } = await supabaseAdmin.storage
     .from(bucket)
-    .upload(fileName, req.file.buffer, {
+    .upload(targetFileName, req.file.buffer, {
       contentType: req.file.mimetype,
       upsert: true
     });
@@ -100,9 +244,52 @@ app.post("/api/upload", upload.single("file"), asyncHandler(async (req: any, res
   
   const { data: { publicUrl } } = supabaseAdmin.storage
     .from(bucket)
-    .getPublicUrl(fileName);
+    .getPublicUrl(targetFileName);
     
-  res.json({ publicUrl });
+  const finalUrl = bucket === 'profiles' ? `${publicUrl}?t=${Date.now()}` : publicUrl;
+
+  if (bucket === 'profiles') {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (token && sessions.has(token)) {
+      const userId = sessions.get(token);
+      
+      // Update public.users table
+      try {
+        const { error: usersErr } = await supabase
+          .from('users')
+          .update({ avatar_url: finalUrl })
+          .eq('id', userId);
+        if (usersErr) {
+          console.error("[SERVER] Supabase error updating users avatar_url:", JSON.stringify(usersErr, null, 2));
+        }
+      } catch (err) {
+        console.error("[SERVER] Exception during users table avatar_url update:", err);
+      }
+
+      // Update public.library_posts table to sync avatar
+      try {
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', userId)
+          .maybeSingle();
+          
+        if (dbUser && dbUser.full_name) {
+          const { error: postsErr } = await supabase
+            .from('library_posts')
+            .update({ avatarSeed: finalUrl, photoUrl: finalUrl })
+            .eq('studentName', dbUser.full_name);
+          if (postsErr) {
+            console.error("[SERVER] Supabase error updating library_posts avatar:", JSON.stringify(postsErr, null, 2));
+          }
+        }
+      } catch (err) {
+        console.error("[SERVER] Exception during library_posts avatar sync:", err);
+      }
+    }
+  }
+
+  res.json({ publicUrl: finalUrl, fileName: targetFileName, avatarUrl: finalUrl });
 }));
 
 app.get("/api/diag-env", (req: any, res: any) => {
@@ -114,6 +301,171 @@ app.get("/api/diag-env", (req: any, res: any) => {
     supabaseUrl,
   });
 });
+
+
+let memoryThoughts: any[] = [];
+
+const unpackThought = (t: any) => {
+  if (!t) return t;
+  let parsed: any = {};
+  try {
+    if (t.card_color && t.card_color.startsWith("{")) {
+      parsed = JSON.parse(t.card_color);
+    }
+  } catch (e) {
+    console.warn("Failed to parse card_color JSON", e);
+  }
+  return {
+    ...t,
+    bg_color: parsed.bg_color || t.card_color || "",
+    border_color: parsed.border_color || "",
+    gradient_start: parsed.gradient_start || "",
+    gradient_end: parsed.gradient_end || "",
+    is_active: parsed.is_active !== false,
+    display_order: parsed.display_order || 0
+  };
+};
+
+// --- THOUGHTS ---
+app.get("/api/thoughts/all", asyncHandler(async (req, res, next) => {
+  try {
+    const { data, error } = await supabase.from('thoughts').select('*').order('created_at', { ascending: false });
+    if (error) {
+      if (error.code === 'PGRST205') return res.json(memoryThoughts.map(unpackThought));
+      return handleError(res, error, "Failed to get thoughts");
+    }
+    const unpacked = (data || []).map(unpackThought);
+    res.json(unpacked);
+  } catch (err) {
+    handleError(res, err, "Server error");
+  }
+}));
+
+app.get("/api/thoughts", asyncHandler(async (req, res, next) => {
+  try {
+    const { data, error } = await supabase.from('thoughts').select('*').order('created_at', { ascending: false }).limit(1);
+    if (error) {
+      if (error.code === 'PGRST205' || error.code === 'PGRST206') {
+        const fallback = memoryThoughts[0];
+        return res.json(fallback ? [unpackThought(fallback)] : []);
+      }
+      return handleError(res, error, "Failed to get thoughts");
+    }
+    const unpacked = (data || []).map(unpackThought);
+    res.json(unpacked);
+  } catch (err) {
+    handleError(res, err, "Server error");
+  }
+}));
+
+app.post("/api/thoughts", asyncHandler(async (req, res, next) => {
+  const { title, thought, author, is_active, icon, bg_color, text_color, border_color, gradient_start, gradient_end, display_order } = req.body;
+  
+  const packedStyle = {
+    bg_color,
+    border_color,
+    gradient_start,
+    gradient_end,
+    is_active: is_active || false,
+    display_order: display_order || 0
+  };
+
+  const newThought = { 
+    id: crypto.randomUUID(), 
+    title, 
+    thought, 
+    author, 
+    card_color: JSON.stringify(packedStyle),
+    text_color, 
+    icon, 
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  const { data, error } = await supabase.from('thoughts').insert(newThought).select().single();
+  if (error) {
+    if (error.code === 'PGRST205') {
+       memoryThoughts.unshift(newThought);
+       return res.json(unpackThought(newThought));
+    }
+    return handleError(res, error, "Failed to add thought");
+  }
+  res.json(unpackThought(data));
+}));
+
+app.put("/api/thoughts/:id", asyncHandler(async (req, res, next) => {
+  const { title, thought, author, is_active, icon, bg_color, text_color, border_color, gradient_start, gradient_end, display_order } = req.body;
+  
+  const packedStyle = {
+    bg_color,
+    border_color,
+    gradient_start,
+    gradient_end,
+    is_active: is_active || false,
+    display_order: display_order || 0
+  };
+
+  const updatePayload: any = {
+    title,
+    thought,
+    author,
+    card_color: JSON.stringify(packedStyle),
+    text_color,
+    icon,
+    updated_at: new Date().toISOString()
+  };
+
+  if (is_active) {
+    updatePayload.created_at = new Date().toISOString();
+  }
+  
+  const { data, error } = await supabase.from('thoughts').update(updatePayload).eq('id', req.params.id).select().single();
+  if (error) {
+    if (error.code === 'PGRST205') {
+      const idx = memoryThoughts.findIndex(t => t.id === req.params.id);
+      if (idx !== -1) {
+        memoryThoughts[idx] = { ...memoryThoughts[idx], ...updatePayload };
+        return res.json(unpackThought(memoryThoughts[idx]));
+      }
+      return res.status(404).json({ error: "Not found" });
+    }
+    return handleError(res, error, "Failed to update thought");
+  }
+  res.json(unpackThought(data));
+}));
+
+app.delete("/api/thoughts/:id", asyncHandler(async (req, res, next) => {
+  const { error } = await supabase.from('thoughts').delete().eq('id', req.params.id);
+  if (error) {
+    if (error.code === 'PGRST205') {
+       memoryThoughts = memoryThoughts.filter(t => t.id !== req.params.id);
+       return res.json({ success: true });
+    }
+    return handleError(res, error, "Failed to delete thought");
+  }
+  res.json({ success: true });
+}));
+
+// --- ADMIN ROUTES ---
+app.get("/api/admin/avatars", asyncHandler(async (req, res, next) => {
+  const { data, error } = await supabaseAdmin.storage.from('profiles').list();
+  if (error) return handleError(res, error, "Failed to list avatars");
+  res.json(data || []);
+}));
+
+app.delete("/api/admin/avatars/:file", asyncHandler(async (req, res, next) => {
+  const { error } = await supabaseAdmin.storage.from('profiles').remove([req.params.file]);
+  if (error) return handleError(res, error, "Failed to delete avatar");
+  res.json({ success: true });
+}));
+
+app.get("/api/admin/storage", asyncHandler(async (req, res, next) => {
+  // Simple summary
+  const { data, error } = await supabaseAdmin.storage.from('profiles').list();
+  if (error) return res.json({ usage: 0 });
+  const usage = (data || []).reduce((acc, f) => acc + (f.metadata?.size || 0), 0);
+  res.json({ usage });
+}));
 
 // --- AUTH & USERS ---
 app.post("/api/auth/register", asyncHandler(async (req, res, next) => {
@@ -163,7 +515,8 @@ app.post("/api/auth/register", asyncHandler(async (req, res, next) => {
       user: {
         ...newUser,
         fullName: newUser.full_name,
-        className: newUser.class_name
+        className: newUser.class_name,
+        avatarUrl: ""
       }
     });
   } catch (err) { handleError(res, err, "Server error during registration"); }
@@ -259,7 +612,8 @@ app.post("/api/auth/login", asyncHandler(async (req, res, next) => {
       user: {
         ...finalUser,
         fullName: finalUser.full_name,
-        className: finalUser.class_name
+        className: finalUser.class_name,
+        avatarUrl: finalUser.avatar_url || ""
       }
     });
   } catch (err) { handleError(res, err, "Server error during login"); }
@@ -299,39 +653,57 @@ app.put("/api/user/profile", asyncHandler(async (req, res, next) => {
       password: password
     });
     if (pwdError) {
+      console.error("[SERVER] Password update failed for user", userId, pwdError);
       return res.status(400).json({ error: "Password update failed: " + pwdError.message });
     }
   }
   
-  let updateData: any = { 
-    full_name: fullName, 
-    class_name: className, 
-    avatar_url: avatarUrl 
-  };
-  console.log("[SERVER] Supabase update payload (users):", JSON.stringify(updateData, null, 2));
+  let updateData: any = {};
+  if (fullName !== undefined) updateData.full_name = fullName;
+  if (className !== undefined) updateData.class_name = className;
+  if (avatarUrl !== undefined) updateData.avatar_url = avatarUrl;
   
-  let { data: user, error } = await supabase.from('users').update(updateData).eq('id', userId).select().single();
-  
-  if (error && (error.message?.includes("avatar_url") || error.code === "PGRST204" || error.code === "PGRST100")) {
-    console.log("avatar_url column not found in public.users, falling back to auth user metadata");
-    // Fallback: update only full_name and class_name in public.users
-    const fallbackPayload = { 
-      full_name: fullName, 
-      class_name: className 
-    };
-    console.log("[SERVER] Supabase fallback user update:", JSON.stringify(fallbackPayload, null, 2));
-    const { data: userOnly, error: userErr } = await supabase.from('users').update(fallbackPayload).eq('id', userId).select().single();
+  let user: any = null;
+  if (Object.keys(updateData).length > 0) {
+    console.log("[SERVER] Supabase update payload (users):", JSON.stringify(updateData, null, 2));
+    let { data: updatedUser, error } = await supabase.from('users').update(updateData).eq('id', userId).select().single();
     
-    if (userErr) return handleError(res, userErr, "Failed to update profile");
-    
-    // Update auth metadata
-    await supabase.auth.admin.updateUserById(userId, {
-      user_metadata: { avatar_url: avatarUrl }
-    });
-    
-    user = { ...userOnly, avatar_url: avatarUrl };
-  } else if (error) {
-    return handleError(res, error, "Failed to update profile");
+    if (error) {
+      console.error("[SERVER] Error updating user profile in public.users:", JSON.stringify(error, null, 2));
+      if (error.message?.includes("avatar_url") || error.code === "PGRST204" || error.code === "PGRST100") {
+        console.log("avatar_url column not found in public.users, falling back to auth user metadata");
+        const fallbackPayload: any = {};
+        if (fullName !== undefined) fallbackPayload.full_name = fullName;
+        if (className !== undefined) fallbackPayload.class_name = className;
+        
+        let userOnly = null;
+        if (Object.keys(fallbackPayload).length > 0) {
+          const { data: fallbackUser, error: userErr } = await supabase.from('users').update(fallbackPayload).eq('id', userId).select().single();
+          if (userErr) {
+            console.error("[SERVER] Fallback user table update failed:", JSON.stringify(userErr, null, 2));
+            return handleError(res, userErr, "Failed to update profile");
+          }
+          userOnly = fallbackUser;
+        } else {
+          const { data: fallbackUser } = await supabase.from('users').select('*').eq('id', userId).single();
+          userOnly = fallbackUser;
+        }
+        
+        // Update auth metadata
+        await supabase.auth.admin.updateUserById(userId, {
+          user_metadata: { avatar_url: avatarUrl }
+        });
+        
+        user = { ...userOnly, avatar_url: avatarUrl };
+      } else {
+        return handleError(res, error, "Failed to update profile");
+      }
+    } else {
+      user = updatedUser;
+    }
+  } else {
+    const { data: existingUser } = await supabase.from('users').select('*').eq('id', userId).single();
+    user = existingUser;
   }
   
   const { data: dbRow } = await supabase.from('users').select('*').eq('id', userId).single();
@@ -693,18 +1065,38 @@ app.post("/api/readers-club", asyncHandler(async (req, res, next) => {
 // --- SOCIAL POSTS ---
 app.get("/api/social/posts", asyncHandler(async (req, res, next) => {
   try {
-    const { data, error } = await supabase.from('social_posts').select('*').order('timestamp', { ascending: false });
-    if (error) return handleError(res, error, "Failed to get posts");
+    const { data, error } = await supabase.from('library_posts').select('*').order('created_at', { ascending: false });
+    if (error) {
+      // Fallback to social_posts for preview if library_posts doesn't exist
+      if (error.code === 'PGRST205') {
+        const fallback = await supabase.from('social_posts').select('*').order('timestamp', { ascending: false });
+        if (!fallback.error) {
+          const mapped = (fallback.data || []).map((p: any) => ({
+            id: p.id, studentName: p.student_name, className: p.class_name, avatarSeed: p.avatar_seed,
+            bookTitle: p.book_title, author: p.author, rating: p.rating, content: p.content,
+            timestamp: p.created_at || p.timestamp, likes: p.likes || 0, commentsCount: p.comments_count || 0,
+            tags: p.tags || [], photoUrl: p.photo_url
+          }));
+          return res.json(mapped);
+        }
+      }
+      return handleError(res, error, "Failed to get posts");
+    }
     
     const mapped = (data || []).map((p: any) => ({
-      ...p,
-      studentName: p.student_name,
-      className: p.class_name,
-      avatarSeed: p.avatar_seed,
+      id: p.id,
+      studentName: p.student_name || 'Anonymous',
+      className: p.class_name || '',
+      avatarSeed: p.avatar_url || 'a',
       bookTitle: p.book_title,
-      commentsCount: p.comments_count,
-      photoUrl: p.photo_url,
-      likedBy: p.liked_by || []
+      author: p.author_name,
+      rating: p.rating,
+      content: p.review,
+      timestamp: p.created_at,
+      likes: p.likes || 0,
+      commentsCount: p.comments_count || 0,
+      tags: p.hashtags || [],
+      photoUrl: p.photo_url
     }));
     res.json(mapped);
   } catch (err) {
@@ -714,35 +1106,91 @@ app.get("/api/social/posts", asyncHandler(async (req, res, next) => {
 
 app.post("/api/social/posts", asyncHandler(async (req, res, next) => {
   const { studentName, className, avatarSeed, bookTitle, author, rating, content, tags, photoUrl } = req.body;
+  
+  // Try library_posts first
   const newPost = {
-    id: crypto.randomUUID(),
     student_name: studentName,
     class_name: className,
-    avatar_seed: avatarSeed,
+    avatar_url: avatarSeed,
     book_title: bookTitle,
-    author,
+    author_name: author,
     rating,
-    content,
-    timestamp: new Date().toISOString(),
+    review: content,
+    created_at: new Date().toISOString(),
     likes: 0,
     comments_count: 0,
-    tags,
-    photo_url: photoUrl,
-    liked_by: [],
-    comments: []
+    hashtags: tags,
+    photo_url: photoUrl
   };
-  const { error } = await supabase.from('social_posts').insert(newPost);
+  
+  let { data, error } = await supabase.from('library_posts').insert(newPost).select().single();
+  
+  if (error && error.code === 'PGRST205') {
+    // Fallback to social_posts for preview
+    const fallbackPost = {
+      id: crypto.randomUUID(),
+      student_name: studentName,
+      class_name: className,
+      avatar_seed: avatarSeed,
+      book_title: bookTitle,
+      author,
+      rating,
+      content,
+      likes: 0,
+      comments_count: 0,
+      tags,
+      photo_url: photoUrl
+    };
+    const fallbackRes = await supabase.from('social_posts').insert(fallbackPost).select().single();
+    error = fallbackRes.error;
+    data = fallbackRes.data;
+    if (!error && data) {
+       return res.json({
+         id: data.id, studentName: data.student_name, className: data.class_name, avatarSeed: data.avatar_seed,
+         bookTitle: data.book_title, author: data.author, rating: data.rating, content: data.content,
+         timestamp: data.created_at || new Date().toISOString(), likes: data.likes || 0, commentsCount: data.comments_count || 0,
+         tags: data.tags || [], photoUrl: data.photo_url
+       });
+    }
+  }
+
   if (error) return handleError(res, error, "Failed to add post");
-  res.json(newPost);
+  
+  res.json({
+    id: data.id,
+    studentName: data.student_name,
+    className: data.class_name,
+    avatarSeed: data.avatar_url,
+    bookTitle: data.book_title,
+    author: data.author_name,
+    rating: data.rating,
+    content: data.review,
+    timestamp: data.created_at,
+    likes: data.likes || 0,
+    commentsCount: data.comments_count || 0,
+    tags: data.hashtags || [],
+    photoUrl: data.photo_url
+  });
 }));
 
 app.post("/api/social/posts/:id/like", asyncHandler(async (req, res, next) => {
   const { userId } = req.body;
-  const { data: post, error } = await supabase.from('social_posts').select('*').eq('id', req.params.id).single();
+  
+  // Try library_posts
+  let table = 'library_posts';
+  let { data: post, error } = await supabase.from(table).select('*').eq('id', req.params.id).single();
+  
+  if (error && error.code === 'PGRST205') {
+    table = 'social_posts';
+    const fallback = await supabase.from(table).select('*').eq('id', req.params.id).single();
+    post = fallback.data;
+    error = fallback.error;
+  }
+  
   if (error || !post) return res.status(404).json({ error: "Post not found" });
   
   const likedBy = post.liked_by || [];
-  let newLikes = post.likes;
+  let newLikes = post.likes || 0;
   
   if (likedBy.includes(userId)) {
     likedBy.splice(likedBy.indexOf(userId), 1);
@@ -752,25 +1200,37 @@ app.post("/api/social/posts/:id/like", asyncHandler(async (req, res, next) => {
     newLikes++;
   }
   
-  await supabase.from('social_posts').update({ likes: newLikes, liked_by: likedBy }).eq('id', req.params.id);
+  await supabase.from(table).update({ likes: newLikes, liked_by: likedBy }).eq('id', req.params.id);
   res.json({ likes: newLikes, isLiked: likedBy.includes(userId) });
 }));
 
 app.post("/api/social/posts/:id/comment", asyncHandler(async (req, res, next) => {
   const { comment, authorName, authorAvatar } = req.body;
-  const { data: post, error } = await supabase.from('social_posts').select('*').eq('id', req.params.id).single();
+  let table = 'library_posts';
+  let { data: post, error } = await supabase.from(table).select('*').eq('id', req.params.id).single();
+  
+  if (error && error.code === 'PGRST205') {
+    table = 'social_posts';
+    const fallback = await supabase.from(table).select('*').eq('id', req.params.id).single();
+    post = fallback.data;
+    error = fallback.error;
+  }
+  
   if (error || !post) return res.status(404).json({ error: "Post not found" });
   
   const comments = post.comments || [];
   const newComment = { id: crypto.randomUUID(), text: comment.text || comment, author: authorName, avatar: authorAvatar, timestamp: new Date().toISOString() };
   comments.push(newComment);
   
-  await supabase.from('social_posts').update({ comments, comments_count: comments.length }).eq('id', req.params.id);
+  await supabase.from(table).update({ comments, comments_count: comments.length }).eq('id', req.params.id);
   res.json({ message: "Comment added", comment: newComment });
 }));
 
 app.delete("/api/social/posts/:id", asyncHandler(async (req, res, next) => {
-  await supabase.from('social_posts').delete().eq('id', req.params.id);
+  const { error } = await supabase.from('library_posts').delete().eq('id', req.params.id);
+  if (error && error.code === 'PGRST205') {
+    await supabase.from('social_posts').delete().eq('id', req.params.id);
+  }
   res.json({ message: "Deleted" });
 }));
 

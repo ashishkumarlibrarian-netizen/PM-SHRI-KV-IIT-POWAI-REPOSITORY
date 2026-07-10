@@ -1,0 +1,32 @@
+-- Run this SQL in your Supabase SQL Editor to support the new Thought of the Day features:
+
+-- 1. Create thoughts table if it doesn't exist
+CREATE TABLE IF NOT EXISTS public.thoughts (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  thought text not null,
+  author text,
+  is_active boolean default false,
+  icon text,
+  bg_color text,
+  text_color text,
+  border_color text,
+  gradient_start text,
+  gradient_end text,
+  display_order integer default 0,
+  created_at timestamptz default now()
+);
+
+-- Note: if you already created the thoughts table previously, just add the new columns:
+-- ALTER TABLE public.thoughts ADD COLUMN IF NOT EXISTS is_active boolean default false;
+-- ALTER TABLE public.thoughts ADD COLUMN IF NOT EXISTS icon text;
+-- ALTER TABLE public.thoughts ADD COLUMN IF NOT EXISTS bg_color text;
+-- ALTER TABLE public.thoughts ADD COLUMN IF NOT EXISTS text_color text;
+-- ALTER TABLE public.thoughts ADD COLUMN IF NOT EXISTS border_color text;
+-- ALTER TABLE public.thoughts ADD COLUMN IF NOT EXISTS gradient_start text;
+-- ALTER TABLE public.thoughts ADD COLUMN IF NOT EXISTS gradient_end text;
+-- ALTER TABLE public.thoughts ADD COLUMN IF NOT EXISTS display_order integer default 0;
+
+-- 2. Setup Security Policies for thoughts
+ALTER TABLE public.thoughts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public full access thoughts" ON public.thoughts FOR ALL USING (true);

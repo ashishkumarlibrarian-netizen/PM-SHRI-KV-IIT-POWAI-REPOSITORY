@@ -1,6 +1,6 @@
 import { uploadFile } from "../lib/upload";
 import React, { useState, useEffect } from "react";
-import { BookOpen, Calendar, HelpCircle, Award, Compass, ShieldAlert, Sparkles, User, FileText, CheckCircle2, Edit3, Plus, Trash2, Send, Loader2, X, Image as ImageIcon } from "lucide-react";
+import { Book, Users, Clock, AlertCircle, Bell, IndianRupee, Shield, Lock, BookOpen, Calendar, HelpCircle, Award, Compass, ShieldAlert, Sparkles, User, FileText, CheckCircle2, Edit3, Plus, Trash2, Send, Loader2, X, Image as ImageIcon } from "lucide-react";
 import { NoticeItem, LibraryStat,  } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -11,6 +11,22 @@ interface WelcomeTabProps {
 
 export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, currentUser }: WelcomeTabProps) {
   const [notices, setNotices] = useState<NoticeItem[]>([]);
+  const [thoughtOfTheDay, setThoughtOfTheDay] = useState<any>(null);
+
+  React.useEffect(() => {
+    const fetchThought = () => {
+      fetch('/api/thoughts').then(res => {
+        if (res.ok) return res.json();
+        return null;
+      }).then(data => {
+        if (data && data.length > 0) setThoughtOfTheDay(data[0]);
+      }).catch(console.error);
+    };
+    
+    fetchThought();
+    const interval = setInterval(fetchThought, 5000); // Poll every 5s for real-time feel
+    return () => clearInterval(interval);
+  }, []);
   const [selectedNotice, setSelectedNotice] = useState<NoticeItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -77,7 +93,7 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
     }
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     fetchNotices();
     fetchHeroImages();
     
@@ -353,6 +369,7 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
             </div>
           </div>
           
+          <div className="hidden lg:flex gap-4">
           <div className="hidden lg:block w-72 h-44 bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10 relative">
             {isOpenToday ? (
               <div className="absolute top-4 right-4 text-emerald-400 flex items-center gap-1.5 text-xs font-semibold bg-emerald-950/50 px-2.5 py-1 rounded-full">
@@ -374,6 +391,44 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
                 <span className="font-semibold">Closed</span>
               </div>
             </div>
+          </div>
+
+
+          </div>
+        </div>
+      </motion.div>
+
+            {/* Thought of the Day - Premium Standalone Card */}
+      <motion.div variants={itemVariants} className="w-full">
+        <div className={`w-full ${thoughtOfTheDay?.bg_color || 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'} backdrop-blur-xl rounded-2xl p-8 border ${thoughtOfTheDay?.border_color || 'border-amber-500/30'} relative overflow-hidden group hover:${thoughtOfTheDay?.border_color?.replace('/30', '/60') || 'border-amber-500/60'} transition-all shadow-sm hover:shadow-md`}>
+          {/* Animated Accent Bar / Gradient Overlay */}
+          <div className={`absolute top-0 left-0 bottom-0 w-1.5 bg-gradient-to-b ${thoughtOfTheDay?.gradient_start || 'from-amber-400'} ${thoughtOfTheDay?.gradient_end || 'to-amber-600'} shadow-[0_0_10px_rgba(245,158,11,0.5)]`}></div>
+          <div className={`absolute top-0 right-0 w-64 h-full bg-gradient-to-l ${thoughtOfTheDay?.gradient_start || 'from-amber-500/10'} to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500`}></div>
+          
+          <div className="flex flex-col md:flex-row md:items-center gap-6 relative z-10">
+            {/* Header/Icon Side */}
+            <div className="flex flex-col gap-2 min-w-[200px]">
+              <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${thoughtOfTheDay?.text_color || 'text-amber-400'}`}>
+                 <span className="text-xl">{thoughtOfTheDay?.icon || '✨'}</span> {thoughtOfTheDay?.title || 'Thought of the Day'}
+              </div>
+              <div className="w-12 h-1 rounded-full bg-current opacity-20"></div>
+            </div>
+            
+            {/* Content Side */}
+            <div className="flex-1 border-l border-current/10 pl-6 py-2">
+              <p className={`text-lg md:text-xl italic font-medium leading-relaxed ${thoughtOfTheDay?.text_color ? 'text-current opacity-90' : 'text-slate-200'}`}>
+                "{thoughtOfTheDay?.thought || 'Reading is the passport to countless adventures.'}"
+              </p>
+              <p className={`text-sm font-semibold mt-4 flex items-center gap-2 ${thoughtOfTheDay?.text_color ? 'text-current opacity-70' : 'text-slate-400'}`}>
+                <span className="w-4 h-[1px] bg-current opacity-50"></span>
+                {thoughtOfTheDay?.author || 'PM Shri KV IIT Powai Library'}
+              </p>
+            </div>
+          </div>
+
+          {/* Large Background Quote */}
+          <div className="absolute -bottom-8 -right-4 text-[12rem] font-serif leading-none opacity-[0.03] group-hover:scale-110 group-hover:opacity-[0.05] transition-all duration-700 select-none pointer-events-none">
+            "
           </div>
         </div>
       </motion.div>
@@ -528,6 +583,37 @@ export default function WelcomeTab({ onNavigateToAIStories, onNavigateToBooks, c
         </motion.div>
 
       </div>
+
+      
+      {/* 📚 Library Rules */}
+      <motion.div variants={itemVariants} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <Book className="w-6 h-6 text-amber-500" />
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">📚 Library Rules</h2>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[
+            { icon: Users, text: "All students of the school are members of the library." },
+            { icon: BookOpen, text: "A student can borrow only two books at a time for a period of one week." },
+            { icon: Clock, text: "Books will be issued to the students during the library periods. No book will be issued or returned during teaching hours." },
+            { icon: Edit3, text: "Marking, underlining or writing on library books is strictly forbidden." },
+            { icon: Lock, text: "Reference books and current periodicals will not be issued to any student. These may be consulted only inside the library." },
+            { icon: AlertCircle, text: "Books not returned within the prescribed period shall attract a fine as per library rules." },
+            { icon: Bell, text: "The Librarian reserves the right to recall any book at any time, even before the due date." },
+            { icon: IndianRupee, text: "In case of loss of a library book, the borrower must either replace the same book or deposit its current market price." },
+            { icon: FileText, text: "Every student must obtain a \"No Dues Certificate\" from the Library before leaving or withdrawing from the school." },
+            { icon: Shield, text: "Strict discipline, silence and proper library etiquette must always be maintained." }
+          ].map((rule, idx) => (
+             <div key={idx} className="flex gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 hover:border-amber-500/30 transition-colors group">
+               <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center flex-shrink-0 shadow-sm text-slate-500 dark:text-slate-400 group-hover:text-amber-500 transition-colors">
+                 <rule.icon className="w-5 h-5" />
+               </div>
+               <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium mt-1">{idx + 1}. {rule.text}</p>
+             </div>
+          ))}
+        </div>
+      </motion.div>
 
       {/* Librarian Profile and Welcome Message */}
       <motion.div variants={itemVariants} id="librarian-welcome-message-panel" className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
