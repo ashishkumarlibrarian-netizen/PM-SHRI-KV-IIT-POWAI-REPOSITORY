@@ -43,3 +43,45 @@ ALTER TABLE public.thoughts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public users access" ON public.users FOR ALL USING (true);
 CREATE POLICY "Public library_posts access" ON public.library_posts FOR ALL USING (true);
 CREATE POLICY "Public thoughts access" ON public.thoughts FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS public.readers_club_folders (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  description text,
+  color text,
+  logo text,
+  cover_image text,
+  banner_image text,
+  display_order integer default 0,
+  is_active boolean default true,
+  created_at timestamptz default now()
+);
+
+CREATE TABLE IF NOT EXISTS public.readers_club_members (
+  id uuid primary key default gen_random_uuid(),
+  folder_id uuid references public.readers_club_folders(id) on delete cascade,
+  name text not null,
+  role text,
+  contribution text,
+  grade text,
+  avatar_color text,
+  image text,
+  created_at timestamptz default now()
+);
+
+CREATE TABLE IF NOT EXISTS public.readers_club_photos (
+  id uuid primary key default gen_random_uuid(),
+  folder_id uuid references public.readers_club_folders(id) on delete cascade,
+  url text not null,
+  display_order integer default 0,
+  created_at timestamptz default now()
+);
+
+ALTER TABLE public.readers_club_folders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.readers_club_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.readers_club_photos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public readers_club_folders access" ON public.readers_club_folders FOR ALL USING (true);
+CREATE POLICY "Public readers_club_members access" ON public.readers_club_members FOR ALL USING (true);
+CREATE POLICY "Public readers_club_photos access" ON public.readers_club_photos FOR ALL USING (true);
+

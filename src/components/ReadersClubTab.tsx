@@ -27,7 +27,8 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
       const res = await fetch("/api/readers-club");
       const data = await res.json();
       if (data.folders && data.folders.length > 0) {
-        setFolders(data.folders);
+        const sortedFolders = [...data.folders].sort((a, b) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
+        setFolders(sortedFolders);
       } else {
         // Initial defaults with correct UUID formats
         const initialFolders = [
@@ -77,7 +78,8 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
         // Reload data from Supabase to prevent local state source-of-truth discrepancy
         const freshRes = await fetch("/api/readers-club");
         const freshData = await freshRes.json();
-        setFolders(freshData.folders || []);
+        const sortedFreshFolders = [...(freshData.folders || [])].sort((a, b) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
+        setFolders(sortedFreshFolders);
       } else {
         const errorData = await res.json().catch(() => ({}));
         alert(`Failed to save Readers Club: ${errorData.details || errorData.error || 'Server error'}`);
@@ -179,6 +181,13 @@ export default function ReadersClubTab({ isAdmin }: { isAdmin?: boolean }) {
   }
 
   const activeFolder = folders.find(f => f.id === activeFolderId);
+
+  console.table(
+    folders.map(f => ({
+      name: f.name,
+      display_order: f.display_order
+    }))
+  );
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-12">

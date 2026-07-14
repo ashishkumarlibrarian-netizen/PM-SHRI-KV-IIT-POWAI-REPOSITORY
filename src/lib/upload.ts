@@ -1,7 +1,10 @@
-export async function uploadFile(file: File, bucket: string): Promise<string> {
+export async function uploadFile(file: File, bucket: string, fileName?: string): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("bucket", bucket);
+  if (fileName) {
+    formData.append("fileName", fileName);
+  }
   
   const token = localStorage.getItem("kv_library_token");
   const res = await fetch("/api/upload", {

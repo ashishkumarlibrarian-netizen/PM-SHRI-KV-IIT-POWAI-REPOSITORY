@@ -133,6 +133,16 @@ app.delete("/api/quick_links_category/:categoryName", asyncHandler(async (req: a
 
 
 app.get("/api/setup_db", asyncHandler(async (req: any, res: any) => {
+  // Ensure bucket exists
+  try {
+    const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+    if (buckets && !buckets.find(b => b.name === 'reader-clubs')) {
+      await supabaseAdmin.storage.createBucket('reader-clubs', { public: true });
+    }
+  } catch (err) {
+    console.error("Failed to create bucket", err);
+  }
+
   const sql = `
     CREATE TABLE IF NOT EXISTS public.quick_links (
       id uuid primary key default gen_random_uuid(),
@@ -151,6 +161,54 @@ app.get("/api/setup_db", asyncHandler(async (req: any, res: any) => {
     ALTER TABLE public.library_posts ADD COLUMN IF NOT EXISTS is_hidden boolean default false;
     ALTER TABLE public.library_posts ADD COLUMN IF NOT EXISTS is_pinned boolean default false;
     ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar_url text;
+
+    CREATE TABLE IF NOT EXISTS public.readers_club_folders (
+      id uuid primary key default gen_random_uuid(),
+      name text not null,
+      description text,
+      color text,
+      logo text,
+      cover_image text,
+      banner_image text,
+      display_order integer default 0,
+      is_active boolean default true,
+      created_at timestamptz default now()
+    );
+    ALTER TABLE public.readers_club_folders ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public readers_club_folders access" ON public.readers_club_folders;
+    CREATE POLICY "Public readers_club_folders access" ON public.readers_club_folders FOR ALL USING (true);
+    
+    ALTER TABLE public.readers_club_folders ADD COLUMN IF NOT EXISTS description text;
+    ALTER TABLE public.readers_club_folders ADD COLUMN IF NOT EXISTS cover_image text;
+    ALTER TABLE public.readers_club_folders ADD COLUMN IF NOT EXISTS banner_image text;
+    ALTER TABLE public.readers_club_folders ADD COLUMN IF NOT EXISTS display_order integer default 0;
+    ALTER TABLE public.readers_club_folders ADD COLUMN IF NOT EXISTS is_active boolean default true;
+    
+    CREATE TABLE IF NOT EXISTS public.readers_club_members (
+      id uuid primary key default gen_random_uuid(),
+      folder_id uuid references public.readers_club_folders(id) on delete cascade,
+      name text not null,
+      role text,
+      contribution text,
+      grade text,
+      avatar_color text,
+      image text,
+      created_at timestamptz default now()
+    );
+    ALTER TABLE public.readers_club_members ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public readers_club_members access" ON public.readers_club_members;
+    CREATE POLICY "Public readers_club_members access" ON public.readers_club_members FOR ALL USING (true);
+
+    CREATE TABLE IF NOT EXISTS public.readers_club_photos (
+      id uuid primary key default gen_random_uuid(),
+      folder_id uuid references public.readers_club_folders(id) on delete cascade,
+      url text not null,
+      display_order integer default 0,
+      created_at timestamptz default now()
+    );
+    ALTER TABLE public.readers_club_photos ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public readers_club_photos access" ON public.readers_club_photos;
+    CREATE POLICY "Public readers_club_photos access" ON public.readers_club_photos FOR ALL USING (true);
   `;
   const { data, error } = await supabaseAdmin.rpc('execute_sql', { sql_statement: sql });
   // if execute_sql fails, we can just do raw query or ignore if we don't have rpc
@@ -202,7 +260,7 @@ app.post("/api/upload", upload.single("file"), asyncHandler(async (req: any, res
   const bucket = req.body.bucket || "documents";
   
   const fileExt = req.file.originalname.split('.').pop() || 'jpg';
-  let targetFileName = `${crypto.randomUUID()}.${fileExt}`;
+  let targetFileName = req.body.fileName || `${crypto.randomUUID()}.${fileExt}`;
   
   if (bucket === 'profiles') {
     const token = req.headers.authorization?.split(" ")[1];
@@ -1007,7 +1065,7 @@ app.delete("/api/magazines/:id", asyncHandler(async (req, res, next) => {
 
 // --- READERS CLUB ---
 app.get("/api/readers-club", asyncHandler(async (req, res, next) => {
-  const { data: folders, error: fError } = await supabase.from('readers_club_folders').select('*');
+  const { data: folders, error: fError } = await supabase.from('readers_club_folders').select('*').order('display_order', { ascending: true });
   const { data: members, error: mError } = await supabase.from('readers_club_members').select('*');
   if (fError || mError) return handleError(res, fError || mError, "Failed to get readers club");
   
@@ -1305,6 +1363,104 @@ app.use((err: any, req: any, res: any, next: any) => {
 
 
 
+
+// --- ADMIN READER CLUB MANAGER ---
+app.get("/api/admin/readers-club/folders", asyncHandler(async (req: any, res: any) => {
+  const { data, error } = await supabase.from('readers_club_folders').select('*').order('display_order', { ascending: true });
+  if (error) return handleError(res, error, "Failed to fetch folders");
+  res.json({ folders: data || [] });
+}));
+
+app.put("/api/admin/readers-club/folders/reorder", asyncHandler(async (req: any, res: any) => {
+  const { folders } = req.body;
+  if (folders && folders.length > 0) {
+    for (const folder of folders) {
+      await supabase.from('readers_club_folders').update({ display_order: folder.display_order }).eq('id', folder.id);
+    }
+  }
+  res.json({ success: true });
+}));
+
+app.put("/api/admin/readers-club/folders/:id", asyncHandler(async (req: any, res: any) => {
+  const { id } = req.params;
+  const payload = req.body;
+  const { data: existing } = await supabase.from('readers_club_folders').select('*').eq('id', id).single();
+  const { error } = await supabase.from('readers_club_folders').update({
+    name: payload.name, description: payload.description, color: payload.color,
+    logo: payload.logo, cover_image: payload.cover_image, banner_image: payload.banner_image,
+    display_order: payload.display_order, is_active: payload.is_active
+  }).eq('id', id);
+  if (error) return handleError(res, error, "Failed to update folder");
+  if (existing) {
+    const imagesToCheck = ['logo', 'cover_image', 'banner_image'];
+    for (const key of imagesToCheck) {
+      if (existing[key] && payload[key] && existing[key] !== payload[key]) {
+        const path = existing[key].split('/reader-clubs/')[1];
+        if (path) await supabaseAdmin.storage.from('reader-clubs').remove([path]);
+      }
+    }
+  }
+  res.json({ success: true });
+}));
+
+app.delete("/api/admin/readers-club/folders/:id", asyncHandler(async (req: any, res: any) => {
+  const { id } = req.params;
+  try {
+    const { data: files } = await supabaseAdmin.storage.from('reader-clubs').list(id);
+    if (files && files.length > 0) {
+      const filesToRemove = files.map(f => `${id}/${f.name}`);
+      await supabaseAdmin.storage.from('reader-clubs').remove(filesToRemove);
+    }
+    const { data: galleryFiles } = await supabaseAdmin.storage.from('reader-clubs').list(`${id}/gallery`);
+    if (galleryFiles && galleryFiles.length > 0) {
+      const galleryFilesToRemove = galleryFiles.map(f => `${id}/gallery/${f.name}`);
+      await supabaseAdmin.storage.from('reader-clubs').remove(galleryFilesToRemove);
+    }
+  } catch (e) {
+    console.error("Failed to delete storage files for folder", e);
+  }
+  const { error } = await supabase.from('readers_club_folders').delete().eq('id', id);
+  if (error) return handleError(res, error, "Failed to delete folder");
+  res.json({ success: true });
+}));
+
+app.put("/api/admin/readers-club/folders/:id/photos/reorder", asyncHandler(async (req: any, res: any) => {
+  const { photos } = req.body;
+  if (photos && photos.length > 0) {
+    for (const photo of photos) {
+      await supabase.from('readers_club_photos').update({ display_order: photo.display_order }).eq('id', photo.id);
+    }
+  }
+  res.json({ success: true });
+}));
+
+app.get("/api/admin/readers-club/folders/:id/photos", asyncHandler(async (req: any, res: any) => {
+  const { id } = req.params;
+  const { data, error } = await supabase.from('readers_club_photos').select('*').eq('folder_id', id).order('display_order', { ascending: true });
+  if (error) return handleError(res, error, "Failed to fetch photos");
+  res.json({ photos: data || [] });
+}));
+
+app.post("/api/admin/readers-club/folders/:id/photos", asyncHandler(async (req: any, res: any) => {
+  const { id } = req.params;
+  const { url, display_order } = req.body;
+  const { error } = await supabase.from('readers_club_photos').insert({ folder_id: id, url, display_order: display_order || 0 });
+  if (error) return handleError(res, error, "Failed to insert photo");
+  res.json({ success: true });
+}));
+
+app.delete("/api/admin/readers-club/folders/:id/photos/:photo_id", asyncHandler(async (req: any, res: any) => {
+  const { photo_id } = req.params;
+  const { data: photo } = await supabase.from('readers_club_photos').select('*').eq('id', photo_id).single();
+  if (photo && photo.url) {
+    const path = photo.url.split('/reader-clubs/')[1];
+    if (path) await supabaseAdmin.storage.from('reader-clubs').remove([path]);
+  }
+  const { error } = await supabase.from('readers_club_photos').delete().eq('id', photo_id);
+  if (error) return handleError(res, error, "Failed to delete photo");
+  res.json({ success: true });
+}));
+
 // VITE SERVER
 if (process.env.NODE_ENV !== "production") {
   createViteServer({ server: { middlewareMode: true }, appType: "spa" }).then(vite => {
@@ -1314,6 +1470,6 @@ if (process.env.NODE_ENV !== "production") {
 } else {
   const distPath = path.join(process.cwd(), "dist");
   app.use(express.static(distPath));
-  app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+  app.get("*", (req: any, res: any) => res.sendFile(path.join(distPath, "index.html")));
   app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
 }
