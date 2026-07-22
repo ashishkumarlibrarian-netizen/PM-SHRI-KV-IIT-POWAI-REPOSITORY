@@ -8,6 +8,8 @@ import {
 import { SocialFeedPost } from "../types";
 import { uploadFile } from "../lib/upload";
 import ReaderClubManager from "./ReaderClubManager";
+import LibraryShowcaseManager from "./LibraryShowcaseManager";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 function ThoughtManager({ thoughts, fetchData, handleDeleteThought }: any) {
   const [editingThought, setEditingThought] = useState<any>(null);
@@ -1069,9 +1071,9 @@ export default function AdminTab() {
         </div>
         
         <div className="flex flex-wrap gap-4 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
-          {['thoughts', 'quick_links', 'readers_club', 'posts', 'avatars'].map(sec => (
+          {['thoughts', 'quick_links', 'readers_club', 'showcase', 'posts', 'avatars'].map(sec => (
             <button key={sec} onClick={() => setActiveSection(sec)} className={`px-4 py-2 font-medium text-sm rounded-lg transition-colors ${activeSection === sec ? "bg-amber-500 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"}`}>
-              {sec === 'thoughts' ? 'Thought Manager' : sec === 'quick_links' ? 'Quick Links Manager' : sec === 'readers_club' ? 'Reader Club Manager' : sec === 'posts' ? 'Social Hub Manager' : 'Avatar Manager'}
+              {sec === 'thoughts' ? 'Thought Manager' : sec === 'quick_links' ? 'Quick Links Manager' : sec === 'readers_club' ? 'Reader Club Manager' : sec === 'showcase' ? 'Library Showcase Manager' : sec === 'posts' ? 'Social Hub Manager' : 'Avatar Manager'}
             </button>
           ))}
         </div>
@@ -1086,6 +1088,12 @@ export default function AdminTab() {
 
         {activeSection === "readers_club" && (
           <ReaderClubManager />
+        )}
+
+        {activeSection === "showcase" && (
+          <ErrorBoundary componentName="Library Showcase Manager">
+            <LibraryShowcaseManager />
+          </ErrorBoundary>
         )}
 
         {activeSection === "posts" && (

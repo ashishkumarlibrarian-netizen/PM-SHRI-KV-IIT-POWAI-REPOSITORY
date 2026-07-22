@@ -59,6 +59,8 @@ import StaffTab from "./components/StaffTab";
 import EventsTab from "./components/EventsTab";
 import QuizCornerTab from "./components/QuizCornerTab";
 import ReadersClubTab from "./components/ReadersClubTab";
+import LibraryShowcaseTab from "./components/LibraryShowcaseTab";
+import LibraryShowcasePreview from "./components/LibraryShowcasePreview";
 import {
   StoryChapter,
   BookRecommendation,
@@ -119,7 +121,7 @@ export default function App() {
     }
   };
 
-  const validTabs = ["dashboard", "story", "books", "creative", "social", "menu", "magazine", "readers-club", "staff", "events", "quiz-corner", "career-guidance", "profile"] as const;
+  const validTabs = ["dashboard", "story", "books", "showcase", "social", "menu", "magazine", "readers-club", "staff", "events", "quiz-corner", "career-guidance", "profile", "admin"] as const;
   type TabType = typeof validTabs[number];
 
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
@@ -204,7 +206,7 @@ export default function App() {
     setCurrentUser(null);
     setStudentName("Guest Scholar");
     setStudentClass("Class V-A");
-    if (activeTab === "story" || activeTab === "creative") {
+    if (activeTab === "story") {
       setActiveTab("dashboard");
     }
     try {
@@ -979,7 +981,7 @@ export default function App() {
                 { label: "Gamma", url: "https://gamma.app/" }
               ] 
             },
-            ...(currentUser ? [{ id: "creative", label: "Creative Hub", icon: <PenTool className="w-4 h-4" /> }] : []),
+            { id: "showcase", label: "Library Showcase", icon: <PenTool className="w-4 h-4" /> },
             { id: "social", label: "Social Hub", icon: <MessageSquare className="w-4 h-4" /> },
             { id: "magazine", label: "Magazine", icon: <BookMarked className="w-4 h-4" /> },
             { id: "board-solutions", label: "Board Solutions", icon: <FileText className="w-4 h-4" />, url: "https://www.cbse.gov.in/cbsenew/model-answer.html" },
@@ -1401,23 +1403,23 @@ export default function App() {
                       Librarian Tip
                     </span>
                     <h3 className="text-lg font-bold text-violet-100">
-                      How to use "Mentor Tidbits"?
+                      Explore Our Showcase
                     </h3>
                     <p className="text-violet-200/90 text-xs leading-relaxed">
-                      Type key words in our Creative Hub to generate poems. The
-                      integrated AI highlights literary devices like
-                      *Alliteration*, *Hyperbole* or *Personification* to
-                      sharpen your school essay skills!
+                      Discover amazing projects, book reviews, events, and creative work by our students and staff in the new Library Showcase!
                     </p>
                   </div>
                   <button
-                    onClick={() => setActiveTab("creative")}
+                    onClick={() => setActiveTab("showcase")}
                     className="mt-6 w-full py-2.5 bg-violet-500/30 hover:bg-violet-500/50 text-white text-xs font-semibold rounded-xl border border-violet-500/20 transition-all inline-flex items-center justify-center gap-1.5"
                   >
-                    Open Creative Studio
+                    Open Library Showcase
                   </button>
                 </div>
               </div>
+
+              {/* Library Showcase Homepage Integration */}
+              <LibraryShowcasePreview onNavigate={() => setActiveTab("showcase")} />
             </motion.div>
           )}
 
@@ -2118,242 +2120,16 @@ export default function App() {
             </motion.div>
           )}
 
-          {/* CREATIVE HUB - WRITING LAB */}
-          {activeTab === "creative" && (
+          {/* LIBRARY SHOWCASE */}
+          {activeTab === "showcase" && (
             <motion.div
-              key="creative-tab"
+              key="showcase-tab"
               initial={{ opacity: 0, y: 15, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -15, scale: 0.98 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-8"
             >
-              {/* Sidebar Input form */}
-              <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <PenTool className="w-5 h-5 text-purple-600" /> KV Student
-                    Creative Desk
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Collaborate with the AI literary critic to compose poems,
-                    lyrics, or novels.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Lit topic */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
-                      Literary Subject / Topic
-                    </label>
-                    <input
-                      type="text"
-                      value={creativeTopic}
-                      onChange={(e) => setCreativeTopic(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
-                      placeholder="e.g. Majestic peacocks inside Sanjay Gandhi National Park"
-                    />
-                  </div>
-
-                  {/* Form Style selection */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
-                      Literary Format
-                    </label>
-                    <select
-                      value={creativeForm}
-                      onChange={(e) => setCreativeForm(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
-                    >
-                      <option>Poem (Rhyming verses)</option>
-                      <option>Haiku (5-7-5 syllables traditional)</option>
-                      <option>First Lines of a Mystery Novel</option>
-                      <option>Socratic Dialogue dialogue</option>
-                    </select>
-                  </div>
-
-                  {/* Literary Mood */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
-                      Mood & Expression
-                    </label>
-                    <select
-                      value={creativeMood}
-                      onChange={(e) => setCreativeMood(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
-                    >
-                      <option>Inspiring & Scientific</option>
-                      <option>Traditional Sanskrit-English fusion</option>
-                      <option>Witty & Humorous</option>
-                      <option>Mysterious & Suspenseful</option>
-                      <option>Melodious & Loving</option>
-                    </select>
-                  </div>
-
-                  {/* Keywords tag cloud */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
-                      Keywords to blend in (comma filtered)
-                    </label>
-                    <input
-                      type="text"
-                      value={creativeKeywords}
-                      onChange={(e) => setCreativeKeywords(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-800 dark:text-slate-100"
-                      placeholder="e.g. monsoon, peacock, chalk, computers"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-1 block">
-                      Separate terms by commas so the AI extracts them safely.
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-2">
-                    <input
-                      type="checkbox"
-                      id="includeAIImage"
-                      checked={includeAIImage}
-                      onChange={(e) => setIncludeAIImage(e.target.checked)}
-                      className="w-4 h-4 text-purple-600 bg-slate-100 border-slate-300 rounded focus:ring-purple-500"
-                    />
-                    <label
-                      htmlFor="includeAIImage"
-                      className="text-xs font-semibold text-slate-700"
-                    >
-                      Also generate a beautiful AI illustration
-                    </label>
-                  </div>
-                </div>
-
-                <button
-                  onClick={generateCreativeContent}
-                  disabled={isCreativeLoading}
-                  className="w-full py-3 bg-gradient-to-r from-purple-800 to-indigo-800 text-white font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow"
-                >
-                  {isCreativeLoading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />{" "}
-                      {includeAIImage
-                        ? "Crafting words & painting image..."
-                        : "Mentoring literary devices..."}
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-purple-200" /> Generate
-                      Beautiful Masterpiece
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Creative Output area with Mentor Tidbits */}
-              <div className="lg:col-span-7 space-y-6">
-                {isCreativeLoading ? (
-                  <div className="bg-slate-900 text-white rounded-3xl p-12 text-center h-full min-h-[380px] flex flex-col items-center justify-center space-y-4 border border-indigo-950">
-                    <div className="w-12 h-12 rounded-full border-t-2 border-purple-500 animate-spin"></div>
-                    <p className="text-purple-300 text-xs font-mono">
-                      {includeAIImage
-                        ? "Blending syllables and rendering beautiful visuals..."
-                        : "Blending syllables and rhyme structures..."}
-                    </p>
-                  </div>
-                ) : creativeResult ? (
-                  <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm space-y-6">
-                    {/* Header banner */}
-                    <div className="border-b border-purple-100 pb-4">
-                      <span className="text-[10px] uppercase font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full">
-                        {creativeForm} • {creativeMood}
-                      </span>
-                      <h3 className="text-xl font-bold font-sans text-slate-800 dark:text-slate-100 mt-2">
-                        {creativeResult.title}
-                      </h3>
-                    </div>
-
-                    {/* AI Illustration (if generated) */}
-                    {creativeImageUrl && (
-                      <div className="rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm relative aspect-video sm:aspect-square md:aspect-video w-full bg-slate-50 dark:bg-slate-800/50">
-                        <img
-                          src={creativeImageUrl}
-                          alt={creativeResult.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-
-                    {/* The literary piece itself */}
-                    <blockquote className="text-slate-800 dark:text-slate-100 leading-relaxed font-serif text-sm md:text-base border-l-4 border-purple-600 pl-4 py-1 italic whitespace-pre-line bg-purple-50/30 p-4 rounded-r-2xl">
-                      {creativeResult.output}
-                    </blockquote>
-
-                    {/* Mentor insights explanations of literary devices */}
-                    <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
-                        <Award className="w-4 h-4 text-amber-500" /> Mentor
-                        insights & Literary Devices
-                      </h4>
-                      <p className="text-xs text-slate-400">
-                        Ashish Kumar’s library guide explains how to replicate
-                        these artistic techniques in standard CBSE tests:
-                      </p>
-
-                      <div className="space-y-2">
-                        {creativeResult.educationalTips &&
-                          creativeResult.educationalTips.map((tip, idx) => (
-                            <div
-                              key={idx}
-                              className="flex gap-2.5 items-start text-xs bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800"
-                            >
-                              <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center text-[9px] flex-shrink-0 font-bold mt-0.5">
-                                {idx + 1}
-                              </span>
-                              <span className="text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
-                                {tip}
-                              </span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `${creativeResult.title}\n\n${creativeResult.output}`,
-                          );
-                          alert(
-                            "Poem copied onto clipboard! Show it to your class tutor.",
-                          );
-                        }}
-                        className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50 dark:bg-slate-800/50 transition-colors"
-                      >
-                        Copy Piece
-                      </button>
-                      <button
-                        onClick={generateCreativeContent}
-                        className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800"
-                      >
-                        Try New Variations
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-slate-900 text-white rounded-3xl p-8 text-center min-h-[380px] flex flex-col justify-center items-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 mx-auto">
-                      💡
-                    </div>
-                    <div className="space-y-1.5 max-w-sm">
-                      <h3 className="text-lg font-bold">
-                        Write like a Nobel Laureate
-                      </h3>
-                      <p className="text-slate-400 text-xs">
-                        Configure a topic or write about Sanjay Gandhi National
-                        Park, and watch the AI write and breakdown the classical
-                        literary elements used!
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <LibraryShowcaseTab />
             </motion.div>
           )}
 

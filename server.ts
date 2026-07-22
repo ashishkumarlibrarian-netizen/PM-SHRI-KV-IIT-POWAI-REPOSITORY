@@ -133,11 +133,14 @@ app.delete("/api/quick_links_category/:categoryName", asyncHandler(async (req: a
 
 
 app.get("/api/setup_db", asyncHandler(async (req: any, res: any) => {
-  // Ensure bucket exists
+  // Ensure buckets exist
   try {
     const { data: buckets } = await supabaseAdmin.storage.listBuckets();
     if (buckets && !buckets.find(b => b.name === 'reader-clubs')) {
       await supabaseAdmin.storage.createBucket('reader-clubs', { public: true });
+    }
+    if (buckets && !buckets.find(b => b.name === 'library-showcase')) {
+      await supabaseAdmin.storage.createBucket('library-showcase', { public: true });
     }
   } catch (err) {
     console.error("Failed to create bucket", err);
@@ -158,9 +161,68 @@ app.get("/api/setup_db", asyncHandler(async (req: any, res: any) => {
     DROP POLICY IF EXISTS "Public full access quick_links" ON public.quick_links;
     CREATE POLICY "Public full access quick_links" ON public.quick_links FOR ALL USING (true);
     
+    CREATE TABLE IF NOT EXISTS public.library_showcase (
+      id uuid primary key default gen_random_uuid(),
+      title text not null,
+      description text,
+      category text,
+      author text,
+      class_name text,
+      cover_image text,
+      gallery_images text[],
+      video_url text,
+      video_type text,
+      youtube_url text,
+      attachment_url text,
+      tags text[],
+      likes integer default 0,
+      views integer default 0,
+      featured boolean default false,
+      is_active boolean default true,
+      display_order integer default 0,
+      created_at timestamptz default now(),
+      updated_at timestamptz default now()
+    );
+    ALTER TABLE public.library_showcase ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public library_showcase access" ON public.library_showcase;
+    CREATE POLICY "Public library_showcase access" ON public.library_showcase FOR ALL USING (true);
+
+    CREATE TABLE IF NOT EXISTS public.library_showcase_images (
+      id uuid primary key default gen_random_uuid(),
+      post_id uuid references public.library_showcase(id) on delete cascade,
+      image_url text not null,
+      display_order integer default 0,
+      created_at timestamptz default now()
+    );
+    ALTER TABLE public.library_showcase_images ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public library_showcase_images access" ON public.library_showcase_images;
+    CREATE POLICY "Public library_showcase_images access" ON public.library_showcase_images FOR ALL USING (true);
+
+    CREATE TABLE IF NOT EXISTS public.library_showcase_likes (
+      id uuid primary key default gen_random_uuid(),
+      post_id uuid references public.library_showcase(id) on delete cascade,
+      identifier text not null,
+      created_at timestamptz default now()
+    );
+    ALTER TABLE public.library_showcase_likes ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public library_showcase_likes access" ON public.library_showcase_likes;
+    CREATE POLICY "Public library_showcase_likes access" ON public.library_showcase_likes FOR ALL USING (true);
+
+    CREATE TABLE IF NOT EXISTS public.library_showcase_views (
+      id uuid primary key default gen_random_uuid(),
+      post_id uuid references public.library_showcase(id) on delete cascade,
+      identifier text not null,
+      viewed_at timestamptz default now()
+    );
+    ALTER TABLE public.library_showcase_views ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public library_showcase_views access" ON public.library_showcase_views;
+    CREATE POLICY "Public library_showcase_views access" ON public.library_showcase_views FOR ALL USING (true);
+
     ALTER TABLE public.library_posts ADD COLUMN IF NOT EXISTS is_hidden boolean default false;
     ALTER TABLE public.library_posts ADD COLUMN IF NOT EXISTS is_pinned boolean default false;
     ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar_url text;
+    ALTER TABLE public.library_showcase ADD COLUMN IF NOT EXISTS likes integer default 0;
+    ALTER TABLE public.library_showcase ADD COLUMN IF NOT EXISTS views integer default 0;
 
     CREATE TABLE IF NOT EXISTS public.readers_club_folders (
       id uuid primary key default gen_random_uuid(),
@@ -1361,7 +1423,307 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 
+// --- LIBRARY SHOWCASE ---
+app.get("/api/library-showcase", asyncHandler(async (req, res) => {
+  const { data, error } = await supabase
+    .from('library_showcase')
+    .select('*')
+    .eq('is_active', true)
+    .order('featured', { ascending: false })
+    .order('display_order', { ascending: true })
+    .order('created_at', { ascending: false });
+  if (error) return res.status(500).json(error);
+  res.json(data || []);
+}));
 
+app.get("/api/admin/library-showcase", asyncHandler(async (req, res) => {
+  const { data, error } = await supabase
+    .from('library_showcase')
+    .select('*')
+    .order('featured', { ascending: false })
+    .order('display_order', { ascending: true })
+    .order('created_at', { ascending: false });
+  if (error) return res.status(500).json(error);
+  res.json(data || []);
+}));
+
+app.get("/api/library-showcase/:id", asyncHandler(async (req: any, res: any) => {
+  const { data, error } = await supabase.from('library_showcase').select('*').eq('id', req.params.id).single();
+  if (error) return res.status(500).json(error);
+  res.json(data);
+}));
+
+app.get("/api/library-showcase/:id/likes", asyncHandler(async (req: any, res: any) => {
+  const { data, error } = await supabase.from('library_showcase').select('likes').eq('id', req.params.id).single();
+  if (error) return res.status(500).json(error);
+  res.json({ likes: data?.likes || 0 });
+}));
+
+app.get("/api/library-showcase/:id/liked-status", asyncHandler(async (req: any, res: any) => {
+  const { user_id, visitor_hash } = req.query;
+  const postId = req.params.id;
+
+  const { count, error: countError } = await supabase
+    .from('library_showcase_likes')
+    .select('*', { count: 'exact', head: true })
+    .eq('post_id', postId);
+
+  if (countError) console.error("GET countError:", countError);
+  const exactLikes = (countError || count === null) ? 0 : count;
+
+  let isLiked = false;
+  if (user_id || visitor_hash) {
+    let query = supabase
+      .from('library_showcase_likes')
+      .select('id')
+      .eq('post_id', postId)
+      .limit(1);
+
+    if (user_id) {
+      query = query.eq('user_id', String(user_id));
+    } else if (visitor_hash) {
+      query = query.eq('visitor_hash', String(visitor_hash));
+    }
+
+    const { data: existingRows } = await query;
+    if (existingRows && existingRows.length > 0) {
+      isLiked = true;
+    }
+  }
+
+  await supabase.from('library_showcase').update({ likes: exactLikes }).eq('id', postId);
+
+  res.json({ liked: isLiked, likes: exactLikes });
+}));
+
+app.post("/api/library-showcase/:id/like", asyncHandler(async (req: any, res: any) => {
+  const postId = req.params.id;
+  const { user_id, visitor_hash } = req.body;
+
+  if (!user_id && !visitor_hash) {
+    return res.status(400).json({ error: "User ID or Visitor Hash is required" });
+  }
+
+  let query = supabase
+    .from('library_showcase_likes')
+    .select('id')
+    .eq('post_id', postId);
+
+  if (user_id) {
+    query = query.eq('user_id', String(user_id));
+  } else if (visitor_hash) {
+    query = query.eq('visitor_hash', String(visitor_hash));
+  }
+
+  const { data: existingRows } = await query;
+
+  let nowLiked = false;
+
+  if (existingRows && existingRows.length > 0) {
+    let delQuery = supabase
+      .from('library_showcase_likes')
+      .delete()
+      .eq('post_id', postId);
+      
+    if (user_id) {
+      delQuery = delQuery.eq('user_id', String(user_id));
+    } else {
+      delQuery = delQuery.eq('visitor_hash', String(visitor_hash));
+    }
+    await delQuery;
+    nowLiked = false;
+  } else {
+    const payload: any = { post_id: postId };
+    if (user_id) payload.user_id = String(user_id);
+    if (visitor_hash) payload.visitor_hash = String(visitor_hash);
+
+    const insertResult = await supabase
+      .from('library_showcase_likes')
+      .insert(payload);
+    nowLiked = true;
+    if (insertResult.error) console.error("Insert error:", insertResult.error);
+  }
+
+  const { count, error: countError } = await supabase
+    .from('library_showcase_likes')
+    .select('*', { count: 'exact', head: true })
+    .eq('post_id', postId);
+
+  if (countError) console.error("POST countError:", countError);
+  const exactLikes = (countError || count === null) ? 0 : count;
+
+  await supabase.from('library_showcase').update({ likes: exactLikes }).eq('id', postId);
+
+  res.json({ liked: nowLiked, likes: exactLikes });
+}));
+
+app.post("/api/library-showcase/:id/view", asyncHandler(async (req: any, res: any) => {
+  const postId = req.params.id;
+  const { identifier } = req.body;
+
+  const { data: post } = await supabase.from('library_showcase').select('views').eq('id', postId).single();
+  let currentViews = post?.views || 0;
+
+  if (!identifier) {
+    return res.json({ views: currentViews, recorded: false });
+  }
+
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: recentView } = await supabase
+    .from('library_showcase_views')
+    .select('id')
+    .eq('post_id', postId)
+    .eq('identifier', String(identifier))
+    .gte('viewed_at', twentyFourHoursAgo)
+    .maybeSingle();
+
+  if (recentView) {
+    return res.json({ views: currentViews, recorded: false });
+  }
+
+  await supabase.from('library_showcase_views').insert({
+    post_id: postId,
+    identifier: String(identifier),
+    viewed_at: new Date().toISOString()
+  });
+
+  currentViews += 1;
+  await supabase.from('library_showcase').update({ views: currentViews }).eq('id', postId);
+
+  res.json({ views: currentViews, recorded: true });
+}));
+
+app.post("/api/admin/library-showcase", asyncHandler(async (req: any, res: any) => {
+  const payload = { ...req.body };
+  delete payload.id;
+  const { error, data } = await supabase.from('library_showcase').insert(payload).select().single();
+  if (error) return res.status(500).json(error);
+  res.json(data);
+}));
+
+app.put("/api/admin/library-showcase/:id", asyncHandler(async (req: any, res: any) => {
+  const payload = { ...req.body };
+  delete payload.id;
+  payload.updated_at = new Date().toISOString();
+  const { error, data } = await supabase.from('library_showcase').update(payload).eq('id', req.params.id).select().single();
+  if (error) return res.status(500).json(error);
+  res.json(data);
+}));
+
+app.get("/api/library-showcase/:id/images", asyncHandler(async (req: any, res: any) => {
+  const { data, error } = await supabase
+    .from('library_showcase_images')
+    .select('*')
+    .eq('post_id', req.params.id)
+    .order('display_order', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) return res.status(500).json(error);
+  res.json(data || []);
+}));
+
+app.post("/api/admin/library-showcase/:id/images", asyncHandler(async (req: any, res: any) => {
+  const postId = req.params.id;
+  const { images } = req.body;
+  if (!Array.isArray(images)) {
+    return res.status(400).json({ error: "Invalid images array" });
+  }
+
+  try {
+    const { data: existingImages } = await supabase
+      .from('library_showcase_images')
+      .select('image_url')
+      .eq('post_id', postId);
+
+    const newUrls = new Set(images.map((img: any) => img.image_url));
+
+    if (existingImages && existingImages.length > 0) {
+      for (const img of existingImages) {
+        if (img.image_url && !newUrls.has(img.image_url)) {
+          let path = img.image_url;
+          if (path.includes('/library-showcase/')) {
+            path = path.split('/library-showcase/')[1];
+          } else if (path.startsWith('http://') || path.startsWith('https://')) {
+            continue;
+          }
+          if (path) {
+            const cleanPath = path.replace(/^\//, '');
+            await supabaseAdmin.storage.from('library-showcase').remove([cleanPath]);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed cleaning up old gallery storage files:", err);
+  }
+
+  await supabase.from('library_showcase_images').delete().eq('post_id', postId);
+
+  if (images.length > 0) {
+    const rowsToInsert = images.map((img: any, idx: number) => ({
+      post_id: postId,
+      image_url: img.image_url,
+      display_order: typeof img.display_order === 'number' ? img.display_order : idx
+    }));
+
+    const { data, error } = await supabase
+      .from('library_showcase_images')
+      .insert(rowsToInsert)
+      .select('*');
+
+    if (error) return res.status(500).json(error);
+    return res.json(data || []);
+  }
+
+  res.json([]);
+}));
+
+app.delete("/api/admin/library-showcase/:id", asyncHandler(async (req: any, res: any) => {
+  // Try to delete storage files first
+  try {
+    const { data: post } = await supabase.from('library_showcase').select('*').eq('id', req.params.id).single();
+    if (post) {
+      const urls = [post.image_url, post.video_url, post.document_url].filter(Boolean);
+      
+      const { data: galleryImgs } = await supabase
+        .from('library_showcase_images')
+        .select('image_url')
+        .eq('post_id', req.params.id);
+
+      if (galleryImgs) {
+        galleryImgs.forEach((gi: any) => {
+          if (gi.image_url) urls.push(gi.image_url);
+        });
+      }
+
+      for (const url of urls) {
+        if (url && typeof url === 'string') {
+          let path = url;
+          if (url.includes('/library-showcase/')) {
+            path = url.split('/library-showcase/')[1];
+          } else if (url.startsWith('http://') || url.startsWith('https://')) {
+            // External URL, do not delete
+            continue;
+          }
+          if (path) {
+            const cleanPath = path.replace(/^\//, '');
+            await supabaseAdmin.storage.from('library-showcase').remove([cleanPath]);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Storage cleanup failed:", err);
+  }
+
+  await supabase.from('library_showcase_images').delete().eq('post_id', req.params.id);
+  await supabase.from('library_showcase_likes').delete().eq('post_id', req.params.id);
+  await supabase.from('library_showcase_views').delete().eq('post_id', req.params.id);
+
+  const { error } = await supabase.from('library_showcase').delete().eq('id', req.params.id);
+  if (error) return res.status(500).json(error);
+  res.json({ success: true });
+}));
 
 
 // --- ADMIN READER CLUB MANAGER ---

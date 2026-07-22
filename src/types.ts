@@ -71,6 +71,8 @@ export interface User {
   className: string;
   createdAt: string;
   role?: string;
+  avatarUrl?: string;
+  token?: string;
 }
 
 export interface RecentBook {
