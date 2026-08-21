@@ -46,6 +46,20 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "dummy" });
 // Dummy session store (can also be moved to Supabase if needed, but simple memory is fine for MVP)
 const sessions = new Map();
 
+// Helper to verify admin permissions using the existing session/role architecture
+const requireAdmin = async (req: any, res: any, next: any) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token || !sessions.has(token)) return res.status(401).json({ error: "Unauthorized" });
+  
+  const userId = sessions.get(token);
+  const { data: user } = await supabaseAdmin.from('users').select('role').eq('id', userId).single();
+  
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ error: "Forbidden: Admin access required" });
+  }
+  next();
+};
+
 // Helper for sending generic error
 const handleError = (res: any, error: any, msg: string) => {
   console.error("SUPABASE_ERROR_DETAILS:", error, "CAUSE:", error?.cause);
@@ -142,11 +156,47 @@ app.get("/api/setup_db", asyncHandler(async (req: any, res: any) => {
     if (buckets && !buckets.find(b => b.name === 'library-showcase')) {
       await supabaseAdmin.storage.createBucket('library-showcase', { public: true });
     }
+    if (buckets && !buckets.find(b => b.name === 'library-achievers')) {
+      await supabaseAdmin.storage.createBucket('library-achievers', { public: true });
+    }
   } catch (err) {
     console.error("Failed to create bucket", err);
   }
 
   const sql = `
+    CREATE TABLE IF NOT EXISTS public.library_achiever_categories (
+      id uuid primary key default gen_random_uuid(),
+      name text not null,
+      description text,
+      icon text,
+      display_order integer default 0,
+      is_active boolean default true,
+      created_at timestamptz default now(),
+      updated_at timestamptz default now()
+    );
+    ALTER TABLE public.library_achiever_categories ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public library_achiever_categories access" ON public.library_achiever_categories;
+    CREATE POLICY "Public library_achiever_categories access" ON public.library_achiever_categories FOR ALL USING (true);
+
+    CREATE TABLE IF NOT EXISTS public.library_achievers (
+      id uuid primary key default gen_random_uuid(),
+      category_id uuid references public.library_achiever_categories(id) on delete cascade,
+      name text not null,
+      designation text,
+      achievement_title text,
+      description text,
+      profile_photo text,
+      achievement_date date,
+      academic_year text,
+      display_order integer default 0,
+      is_active boolean default true,
+      created_at timestamptz default now(),
+      updated_at timestamptz default now()
+    );
+    ALTER TABLE public.library_achievers ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Public library_achievers access" ON public.library_achievers;
+    CREATE POLICY "Public library_achievers access" ON public.library_achievers FOR ALL USING (true);
+
     CREATE TABLE IF NOT EXISTS public.quick_links (
       id uuid primary key default gen_random_uuid(),
       title text not null,
@@ -1820,6 +1870,174 @@ app.delete("/api/admin/readers-club/folders/:id/photos/:photo_id", asyncHandler(
   }
   const { error } = await supabase.from('readers_club_photos').delete().eq('id', photo_id);
   if (error) return handleError(res, error, "Failed to delete photo");
+  res.json({ success: true });
+}));
+
+// --- LIBRARY ACHIEVERS ---
+app.get("/api/library-achievers/categories", asyncHandler(async (req: any, res: any) => {
+  const { data, error } = await supabase
+    .from('library_achiever_categories')
+    .select('*')
+    .order('is_pinned', { ascending: false, nullsFirst: false })
+    .order('display_order', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) return res.status(500).json(error);
+  res.json(data || []);
+}));
+
+app.post("/api/admin/library-achievers/categories", requireAdmin, asyncHandler(async (req: any, res: any) => {
+  const payload = { ...req.body };
+  delete payload.id;
+  const { error, data } = await supabaseAdmin.from('library_achiever_categories').insert(payload).select().single();
+  if (error) return res.status(500).json(error);
+  res.json(data);
+}));
+
+app.put("/api/admin/library-achievers/categories/:id", requireAdmin, asyncHandler(async (req: any, res: any) => {
+  const payload = { ...req.body };
+  delete payload.id;
+  payload.updated_at = new Date().toISOString();
+  const { error, data } = await supabaseAdmin.from('library_achiever_categories').update(payload).eq('id', req.params.id).select().single();
+  if (error) return res.status(500).json(error);
+  res.json(data);
+}));
+
+app.delete("/api/admin/library-achievers/categories/:id", requireAdmin, asyncHandler(async (req: any, res: any) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ success: false, error: "Category ID is required" });
+  }
+
+  // 1. Confirm category exists
+  const { data: category, error: findError } = await supabaseAdmin
+    .from('library_achiever_categories')
+    .select('id, name')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (findError) {
+    return res.status(500).json({ success: false, error: findError.message || "Failed to find category" });
+  }
+  if (!category) {
+    return res.status(404).json({ success: false, error: "Category not found" });
+  }
+
+  // 2. Storage cleanup for any achievers inside this category
+  try {
+    const { data: catAchievers } = await supabaseAdmin
+      .from('library_achievers')
+      .select('id, profile_photo')
+      .eq('category_id', id);
+
+    if (catAchievers && catAchievers.length > 0) {
+      for (const ach of catAchievers) {
+        if (ach.profile_photo) {
+          let path = ach.profile_photo;
+          if (path.includes('/library-achievers/')) {
+            path = path.split('/library-achievers/')[1];
+          }
+          if (path && !path.startsWith('http')) {
+            const cleanPath = decodeURIComponent(path.replace(/^\//, '').split('?')[0]);
+            await supabaseAdmin.storage.from('library-achievers').remove([cleanPath]);
+          }
+        }
+        try {
+          const { data: folderFiles } = await supabaseAdmin.storage.from('library-achievers').list(`members/${ach.id}`);
+          if (folderFiles && folderFiles.length > 0) {
+            await supabaseAdmin.storage.from('library-achievers').remove(folderFiles.map(f => `members/${ach.id}/${f.name}`));
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (storageErr) {
+    console.error("Storage cleanup for category achievers failed (non-blocking):", storageErr);
+  }
+
+  // 3. Delete category by ID from public.library_achiever_categories (cascades achievers)
+  const { error } = await supabaseAdmin.from('library_achiever_categories').delete().eq('id', id);
+  if (error) {
+    return res.status(500).json({ success: false, error: error.message || "Failed to delete category" });
+  }
+
+  res.json({ success: true });
+}));
+
+app.get("/api/library-achievers", asyncHandler(async (req: any, res: any) => {
+  const { data, error } = await supabase
+    .from('library_achievers')
+    .select('*, library_achiever_categories(name)')
+    .order('is_pinned', { ascending: false, nullsFirst: false })
+    .order('display_order', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) return res.status(500).json(error);
+  res.json(data || []);
+}));
+
+app.post("/api/admin/library-achievers", requireAdmin, asyncHandler(async (req: any, res: any) => {
+  const payload = { ...req.body };
+  delete payload.id;
+  delete payload.library_achiever_categories;
+  const { error, data } = await supabaseAdmin.from('library_achievers').insert(payload).select().single();
+  if (error) return res.status(500).json(error);
+  res.json(data);
+}));
+
+app.put("/api/admin/library-achievers/:id", requireAdmin, asyncHandler(async (req: any, res: any) => {
+  const payload = { ...req.body };
+  delete payload.id;
+  delete payload.library_achiever_categories;
+  payload.updated_at = new Date().toISOString();
+  const { error, data } = await supabaseAdmin.from('library_achievers').update(payload).eq('id', req.params.id).select().single();
+  if (error) return res.status(500).json(error);
+  res.json(data);
+}));
+
+app.delete("/api/admin/library-achievers/:id", requireAdmin, asyncHandler(async (req: any, res: any) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ success: false, error: "Achiever ID is required" });
+  }
+
+  // 1. Confirm achiever exists
+  const { data: achiever, error: findError } = await supabaseAdmin
+    .from('library_achievers')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (findError) {
+    return res.status(500).json({ success: false, error: findError.message || "Failed to find achiever" });
+  }
+  if (!achiever) {
+    return res.status(404).json({ success: false, error: "Achiever not found" });
+  }
+
+  // 2. Storage cleanup if photo exists
+  if (achiever.profile_photo) {
+    try {
+      let path = achiever.profile_photo;
+      if (path.includes('/library-achievers/')) {
+        path = path.split('/library-achievers/')[1];
+      }
+      if (path && !path.startsWith('http')) {
+        const cleanPath = decodeURIComponent(path.replace(/^\//, '').split('?')[0]);
+        await supabaseAdmin.storage.from('library-achievers').remove([cleanPath]);
+      }
+      const { data: folderFiles } = await supabaseAdmin.storage.from('library-achievers').list(`members/${id}`);
+      if (folderFiles && folderFiles.length > 0) {
+        await supabaseAdmin.storage.from('library-achievers').remove(folderFiles.map(f => `members/${id}/${f.name}`));
+      }
+    } catch (storageErr) {
+      console.error("Storage cleanup failed for achiever (non-blocking):", storageErr);
+    }
+  }
+
+  // 3. Delete row from public.library_achievers
+  const { error } = await supabaseAdmin.from('library_achievers').delete().eq('id', id);
+  if (error) {
+    return res.status(500).json({ success: false, error: error.message || "Failed to delete achiever from database" });
+  }
+
   res.json({ success: true });
 }));
 

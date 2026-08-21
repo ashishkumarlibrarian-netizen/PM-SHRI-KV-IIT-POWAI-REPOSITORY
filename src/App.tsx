@@ -58,6 +58,7 @@ import MagazineTab from "./components/MagazineTab";
 import StaffTab from "./components/StaffTab";
 import EventsTab from "./components/EventsTab";
 import QuizCornerTab from "./components/QuizCornerTab";
+import LibraryAchieversTab from "./components/LibraryAchieversTab";
 import ReadersClubTab from "./components/ReadersClubTab";
 import LibraryShowcaseTab from "./components/LibraryShowcaseTab";
 import LibraryShowcasePreview from "./components/LibraryShowcasePreview";
@@ -121,7 +122,7 @@ export default function App() {
     }
   };
 
-  const validTabs = ["dashboard", "story", "books", "showcase", "social", "menu", "magazine", "readers-club", "staff", "events", "quiz-corner", "career-guidance", "profile", "admin"] as const;
+  const validTabs = ["dashboard", "story", "books", "showcase", "social", "menu", "magazine", "readers-club", "staff", "events", "quiz-corner", "career-guidance", "profile", "admin", "achievers"] as const;
   type TabType = typeof validTabs[number];
 
   const [activeTab, setActiveTabState] = useState<TabType>(() => {
@@ -967,6 +968,7 @@ export default function App() {
         <nav className="hidden xl:flex items-center gap-1.5 text-xs font-semibold flex-1 justify-center px-4 flex-wrap">
           {[
             { id: "dashboard", label: "Bulletin & Desk", icon: <LayoutGrid className="w-4 h-4" /> },
+            { id: "achievers", label: "Library Achievers", icon: <Award className="w-4 h-4" /> },
             ...(currentUser ? [{ id: "story", label: "AI Interactive Storyteller", icon: <Sparkles className="w-4 h-4" /> }] : []),
             { id: "books", label: "Recent Books", icon: <BookOpen className="w-4 h-4" />, url: "https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3" },
             { 
@@ -1163,6 +1165,7 @@ export default function App() {
         <div className="flex px-4 py-2 gap-2 text-xs">
           {[
             { id: "dashboard", label: "Bulletin", icon: null },
+            { id: "achievers", label: "🏆 Library Achievers", icon: null },
             ...(currentUser ? [{ id: "story", label: "✨ AI Storytelling", icon: null }] : []),
             { id: "books", label: "📖 Recent Books", icon: null, url: "https://eg4.nic.in/OPAC/Default.aspx?CL_NAME=KVS3" },
             { 
@@ -2130,6 +2133,19 @@ export default function App() {
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
               <LibraryShowcaseTab />
+            </motion.div>
+          )}
+
+          {/* LIBRARY ACHIEVERS */}
+          {activeTab === "achievers" && (
+            <motion.div
+              key="achievers-tab"
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <LibraryAchieversTab />
             </motion.div>
           )}
 
